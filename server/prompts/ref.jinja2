@@ -1,0 +1,285 @@
+<post_1>
+title: LinkedIn's Feed
+Base Idea: Explain the system design behind LinkedIn's real-time feed.
+Description: A post explaining that LinkedIn uses a specialized search engine (Galene) with an inverted index and near real-time updates via Kafka to build the user's feed. It prioritizes speed over perfect accuracy by using "early termination" to find "good enough" content quickly.
+content:
+```
+How LinkedIn serves the feed you are scrolling right now ?
+
+You are reading this post. But how did it get here? LinkedIn has 1 billion members. If I post this, how does the system know to show it to you specifically within milliseconds?
+
+It’s not just one database. It’s a specialized search engine called Galene.
+
+The "Inverted Index" Search engines usually index documents (like Google indexing web pages). But LinkedIn has to index People and Entities. And unlike a web page, your profile changes constantly. You connect, you like, you comment.
+
+The Writ: When I hit "Post," it goes to a distributed Key-Value store (Espresso).
+The Stream: That write triggers a Kafka event.
+The Index: Galene consumes that Kafka stream and updates the index in near real-time (NRT).
+
+To make the feed fast, Galene doesn't search everyone. It uses Early Termination.
+
+It ranks the potential matches based on a lightweight score (affinity, recency). Once it finds "enough" good posts (e.g., the top 100), it stops searching. It trades "Perfect Accuracy" for "Low Latency."
+
+Great search engineering isn't about finding every result. It’s about finding the good enough results fast enough to keep the user scrolling.
+
+hashtag#LinkedInEngineering hashtag#SearchEngine hashtag#Kafka hashtag#SystemDesign hashtag#BigData
+```
+</post_1>
+
+<post_2>
+title: Uber's MySQL High Availability
+Base Idea: Explain Uber's transition to a consensus-based architecture for MySQL high availability.
+Description: A post detailing how Uber moved from a traditional, reactive primary-secondary MySQL setup to a more robust consensus-based system using MySQL Group Replication (MGR). It highlights the engineering challenges of implementing MGR at scale and the custom solutions Uber built to achieve true high availability.
+content:
+```
+MySQL broke at Uber. Here is how they fixed it.
+
+When you run at Uber's scale (Petabytes of data, millions of QPS), the textbook answer stops working.
+
+Uber just revealed that their standard MySQL High Availability (HA) setup was causing too much downtime.
+
+The Problem: "Reactive" Failover
+For years, Uber used a classic setup:
+
+• A primary node takes writes.
+• A secondary node replicates them (asynchronously).
+• An external controller watches for failure.
+If the primary died, the controller had to notice, decide, and promote the secondary.
+
+The result? Data loss (lag) and seconds of downtime during the switch.
+The Solution: "Consensus" (MySQL Group Replication)
+
+Uber Engineering didn't just patch the old system. They moved to a Consensus-based Architecture using MySQL Group Replication (MGR).
+
+Instead of an external "manager" deciding who is alive, the database nodes now talk to each other using Paxos.
+
+The "Real" Engineering Challenge
+Here is the part most blogs leave out. You can't just "turn on" MGR and walk away.
+
+Uber found that at their scale, network jitters caused "flapping" (nodes joining/leaving the group constantly).
+
+To fix this, they built a custom Consensus Layer on top:
+
+1. Single-Primary Mode: They strictly enforce one writer to avoid conflict complexity.
+
+2. Advanced Detection: They added logic to distinguish between a "blip" and a "crash" before triggering a view change.
+
+3. Graceful Offboarding: Nodes are removed from the consensus group before maintenance to prevent performance degradation.
+
+The Lesson
+"High Availability" isn't a setting you toggle in your cloud provider.
+It is an architectural decision between Eventual Consistency (fast, risky) and Consensus (complex, robust).
+Uber chose complexity to buy reliability.
+```
+</post_2>
+
+<post_3>
+title: HyperLogLog
+Base Idea: Explain the HyperLogLog algorithm for efficient cardinality estimation.
+Description: A post explaining the HyperLogLog algorithm for estimating large unique counts with very little memory. It uses an analogy of coin flips to describe how observing rare patterns (like a long run of leading zeros in a hash) can estimate the total number of items.
+content:
+```
+If you have 100 million rows, calculating the exact unique count is expensive. You have to store every single ID in a HashSet in memory to check for duplicates.
+
+Cost: ~4 GB of RAM.
+Speed: Slow.
+
+But what if you only have 12 KB of RAM?
+The Solution: HyperLogLog (HLL) 📊
+
+HyperLogLog is a probabilistic algorithm that estimates cardinality (unique counts) with massive memory savings.
+
+Standard Set: Memory grows linearly with data (100M items = Huge RAM).
+
+HyperLogLog: Memory is fixed. 12 KB. Always.
+
+HyperLogLog relies on observing rare events to estimate the total volume of data.
+
+- Imagine I am in a dark room flipping a fair coin. You walk in and ask: "How long have you been flipping this coin?"
+- I reply: "I'm not sure, but the longest run of Heads I got in a row was 3."
+- Your Guess: "3 heads (H-H-H) has a probability of $1/8$. You probably flipped the coin about 8 times."
+
+- I reply: "Wait, actually, I just got a run of 10 Heads in a row."
+- Your Guess: "Whoa. 10 heads (H-H-H-H-H-H-H-H-H-H) has a probability of 1/1024. You have probably been flipping this coin over 1,000 times."
+
+The Core Rule: The "rarer" the maximum streak, the more trials (unique items) must have occurred to produce it.
+
+How HLL does this with Data
+
+Hashing (The Coin Flip):
+When a user ID comes in (e.g., "User_55"), HLL runs it through a Hash Function. This turns the ID into a random binary string, like 0010110....
+- 0 is Heads.
+- 1 is Tails.
+Leading Zeros (The Streak):
+
+It counts the number of 0s at the start of the string.
+- 1101... -> 0 leading zeros. (Common)
+- 0010... -> 2 leading zeros. (1 in 4 chance).
+- 0000001... -> 6 leading zeros. (1 in 64 chance).
+
+The Register (The Memory):
+- HLL keeps a single number in memory: Max_Zeros.
+- Every time it sees a new hash, it updates:
+- Max_Zeros = max(Current_Zeros, Max_Zeros)
+
+The Trade-off:
+- Accuracy: It has a standard error of ~0.81%.
+- Benefit: You can count billions of unique users using less memory than a JPEG image.
+
+The Real-World Stack: Redis has this built-in.
+- PFADD visitors "user_1"
+- PFCOUNT visitors
+
+The Takeaway: In Big Data, "Exact" is the enemy of "Fast." For a dashboard, knowing you have "10.1 Million" users is just as good as "10,142,592"—and it costs 99% less to compute.
+The Estimate:
+At the end, the estimated count is simply: 2^{Max_Zeros}
+```
+</post_3>
+
+<post_4>
+title: UDP vs. TCP for Video
+Base Idea: Compare the use of TCP and UDP in different types of video streaming.
+Description: A post comparing why real-time video services like Zoom use UDP, while on-demand services like Netflix use TCP. It explains the trade-off: Zoom prioritizes latency (accepting glitches), whereas Netflix prioritizes quality (using buffering and retransmissions).
+content:
+```
+If you drop a packet on Zoom, the video glitches. If you drop a packet on Netflix, you never notice.
+Why? Because they are solving two completely different physics problems.
+
+1. The "Real-Time" Problem (Zoom/WebRTC) In a live conversation, Latency is king. You cannot "buffer" a conversation. If I say "Hello," you need to hear it now.
+Protocol: UDP.
+Strategy: If a packet is lost, ignore it. Do not retransmit. It's better to have a glitchy frame than a 2-second delay.
+
+2. The "On-Demand" Problem (Netflix/YouTube) In a movie, Quality is king. You don't care if the video frame you are watching arrived 5 milliseconds ago or 5 minutes ago, as long as it looks perfect (4K).
+Protocol: TCP (via HTTP/DASH).
+Strategy: Buffering. Netflix downloads the next 5 minutes of the movie ahead of time.
+
+If a packet is lost? TCP retransmits it.
+
+Does the video freeze? No. The player just reads from the buffer while TCP fixes the error in the background.
+
+The Evolution: QUIC (The Best of Both) 🚀 Recently, Netflix (and YouTube) have started moving to QUIC. QUIC is technically built on top of UDP, but it implements the reliability and congestion control of TCP in "User Space."
+It gives them the reliable delivery of TCP without the "Head-of-Line Blocking" latency issues.
+
+The Takeaway: Don't memorize "Video uses UDP." Understand the constraint: Is the user interacting (UDP)? or Consuming (TCP)?
+
+hashtag#SystemDesign hashtag#Netflix hashtag#Streaming hashtag#TCP hashtag#UDP hashtag#Engineering
+```
+</post_4>
+
+<post_5>
+title: Forward Error Correction
+Base Idea: Explain Forward Error Correction (FEC) in real-time video streaming.
+Description: A post explaining how real-time video applications handle packet loss without freezing. It describes how Forward Error Correction (FEC) sends redundant data, allowing the client to instantly reconstruct lost packets mathematically, trading more bandwidth for zero-latency recovery.
+content:
+```
+If Zoom used TCP, your video would freeze every time you blinked.
+
+In 99% of software engineering, "Packet Loss" is an error. In Real-Time Video, "Packet Loss" is a feature.
+
+If you are building a file downloader, you use TCP.
+
+- TCP is reliable. If Packet #50 drops, the receiver says "Stop! I didn't get #50."
+- The sender resends #50. The receiver waits.
+- The Result: 100% accuracy, but variable latency (Head-of-Line Blocking).
+- The Problem with Live Video: 📹 In a video call, a frame from 200ms ago is useless history. If Packet #50 drops, we don't want to pause the live feed to wait for it. We want to skip it and show Packet #51 immediately.
+
+This is why Zoom, Google Meet, and Discord use UDP. They prefer "Glitchy" over "Paused."
+
+The Magic: Forward Error Correction (FEC)
+But wait - if we just skip packets, won't the video turn into a garbled mess of green pixels? Not if you use Math.
+
+Instead of asking for a retransmission (which takes time), the sender proactively sends Redundant Data.
+
+The Algorithm (Simplified XOR):
+- Sender sends Packet A and Packet B.
+- Sender also computes Packet C = A XOR B (The Parity Packet).
+- Scenario: Packet A gets lost in the network. ❌
+Recovery: The receiver gets B and C. It calculates C XOR B.
+Result: It mathematically reconstructs Packet A instantly. 🤯
+The Trade-off: You use 50% more bandwidth (sending redundant packets) to gain Zero Latency Recovery.
+```
+</post_5>
+
+<post_6>
+title: Pinterest's Database Sharding
+Base Idea: Explain Pinterest's manual MySQL sharding strategy for massive scale.
+Description: A post describing how Pinterest scaled its database by moving relationship logic to the application layer. It explains their custom ID system that encodes the shard location and how they replaced database JOINs with "mapping tables."
+content:
+```
+When Pinterest hit 100 million users, their MySQL cluster was dying. The problem wasn't the data size. It was the complexity of the relationships.
+Users follow Boards. Boards have Pins. Pins have Likes. A single page load required massive JOIN operations across tables with billions of rows. 
+
+So they did the unthinkable: They deleted all Foreign Keys and disabled Joins.
+The Solution: Manually Sharded MySQL (The "Spotlight" Architecture) 
+
+Instead of letting the database manage relationships, they moved that logic to the Application Layer.
+
+1. The "Universal ID" Hack: They designed a custom 64-bit ID structure that tells you exactly where data lives without looking it up.
+Bits 0-15: Shard ID (Which physical server?)
+Bits 16-25: Type ID (Is this a Pin? A Board? A User?)
+Bits 26-64: Local ID (Auto-increment in that specific table).
+
+The Magic: If I give you ID 2495349, you don't need a central index to find it. You just parse the first 16 bits -> "Oh, this is on Shard #40." -> Connect to Shard #40 -> SELECT * FROM pins WHERE id = ...
+
+2. The Mapping Tables: Since they can't JOIN tables across different shards, they store relationships in separate "Mapping Tables" that act like a massive adjacency list.
+Table: board_has_pins
+board_id (Key)
+pin_id
+sequence_id (For ordering)
+
+To render a Board:
+Query 1: Go to the Board Shard -> Get the list of pin_ids from the mapping table.
+Query 2: Parse those IDs to find which shards they live on.
+Query 3: Fire parallel queries to all those shards to fetch the actual Pin data.
+
+The Takeaway: Relational databases are great at relationships—until you shard. Once you shard, your database is just a dumb storage engine. Your code becomes the database.
+
+But, this was 2013. If you had to do this today, you would use some modern ways to get past these issues. Let me know in the comments, what will you use ?
+
+hashtag#SystemDesign hashtag#Pinterest hashtag#MySQL hashtag#Sharding hashtag#Database hashtag#Scalability
+```
+</post_6>
+
+<post_7>
+title : Consistent Hashing
+Base Idea: Explain the concept of Consistent Hashing for distributed systems.
+Description: A post explaining why simple modulo hashing fails when servers are added or removed. It then introduces Consistent Hashing as the solution, using the analogy of a "ring" to show how it minimizes data movement and improves scalability.
+content:
+```
+If you are building a distributed cache or sharding a database, your first instinct is usually Modulo Hashing.
+
+server_index = hash(key) % N
+
+It looks perfect. It spreads traffic evenly across your N servers.
+
+Until one server crashes. 
+
+The "Rebalancing Storm":
+When N changes to N-1 (because a server died) or N+1 (because you scaled up), the math changes for every single key.
+• Key A: hash(A) % 5 = 2 (Server 2)
+• Key A: hash(A) % 6 = 4 (Server 4) 
+
+The Math:
+In a Modulo system, changing the server count reshuffles ~100% of your data.
+Your cache hit ratio drops to zero instantly. Your database gets hammered by the "Thundering Herd."
+The Solution: Consistent Hashing (The Ring)
+
+Invented by Akamai (and popularized by Amazon Dynamo), this treats your servers as points on a circle (0° to 360°).
+
+1. The Ring: Map the integers 0 to 2^{32} on a circle.
+2. The Servers: Hash your Server IPs to place them at random points on the ring.
+3. The Keys: Hash your data keys to points on the ring.
+4. The Lookup: To find where a key lives, walk clockwise on the ring until you hit the first server.
+
+Why this is genius:
+
+- When you add a new server to the ring, you don't reshuffle the whole world.
+- You only "steal" a small slice of keys from the server immediately ahead of you. 
+• Modulo Hashing: 100% data movement.
+• Consistent Hashing: 1/N data movement.
+
+Scalability isn't just about handling traffic. It's about handling topology changes gracefully.
+If scaling up causes downtime, you didn't scale; you just rebooted.
+hashtag#SystemDesign hashtag#Algorithms hashtag#DistributedSystems hashtag#DynamoDB hashtag#Cassandra
+```
+</post_7>
