@@ -47,6 +47,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./client:/app
+      - ./db:/app/db
     depends_on:
       - backend
     networks:

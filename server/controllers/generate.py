@@ -8,40 +8,52 @@ from celery_app import app as celery_app
 logger = logging.getLogger(__name__)
 
 
-async def initiate_generation(reference_keywords: str, reference_posts: list = None):
+async def initiate_generation(request):
     """
     Initiate content generation workflow.
     """
     try:
-        if not reference_keywords.strip():
+        if not request.reference_keywords.strip():
             raise HTTPException(
-                    status_code=400,
-                    detail="reference_keywords cannot be empty"
-                    )
+                status_code=400,
+                detail="reference_keywords cannot be empty"
+            )
 
-        # Start the idea generation task
+        provider_tasks = {
+            "gemini": "tasks.generate_idea_gemini",
+            "gpt": "tasks.generate_idea_gpt",
+        }
+
+        task_name = provider_tasks.get(request.provider)
+        if not task_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider specified: {request.provider}"
+            )
+
+        # Start the appropriate idea generation task
         idea_task = celery_app.send_task(
-                'tasks.generate_idea',
-                args=[reference_keywords],
-                kwargs={'reference_posts': reference_posts}
-                )
+            task_name,
+            args=[request.reference_keywords],
+            kwargs={'reference_posts': request.reference_posts}
+        )
 
-        logger.info(f"Started idea generation task: {idea_task.id}")
+        logger.info(f"Started {request.provider} idea generation task: {idea_task.id}")
 
         return {
-                "task_id": idea_task.id,
-                "message": "Content generation started",
-                "status": "pending"
-                }
+            "task_id": idea_task.id,
+            "message": f"Content generation started with {request.provider}",
+            "status": "pending"
+        }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error initiating generation: {str(e)}")
         raise HTTPException(
-                status_code=500,
-                detail=f"Failed to initiate generation: {str(e)}"
-                )
+            status_code=500,
+            detail=f"Failed to initiate generation: {str(e)}"
+        )
 
 
 async def get_task_status(task_id: str):

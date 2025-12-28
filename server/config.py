@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: Optional[str] = None
     GOOGLE_MODEL: str = "gemini-2.5-flash"
 
+    # OpenAI GPT
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-4.1"
+
     # Prompts
     IDEA_PROMPT_TEMPLATE_PATH: str = "prompts/idea_template.jinja2"
     POST_PROMPT_TEMPLATE_PATH: str = "prompts/post_template.jinja2"

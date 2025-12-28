@@ -16,6 +16,7 @@ router = APIRouter()
 class GenerateRequest(BaseModel):
     reference_keywords: str
     reference_posts: Optional[list] = None
+    provider: Optional[str] = "gemini"
 
 
 class TaskStatusResponse(BaseModel):
@@ -43,7 +44,8 @@ async def health_check():
 @router.post("/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
     """Initiate content generation workflow."""
-    return await initiate_generation(request.reference_keywords, request.reference_posts)
+    return await initiate_generation(request)
+
 
 
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
