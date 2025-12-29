@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from controllers.generate import initiate_generation, get_task_status
+from utils.scraper import process_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,9 @@ async def health_check():
 @router.post("/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
     """Initiate content generation workflow."""
+    # Process keywords: detect and scrape URLs if present
+    processed_keywords = process_keywords(request.reference_keywords)
+    request.reference_keywords = processed_keywords
     return await initiate_generation(request)
 
 

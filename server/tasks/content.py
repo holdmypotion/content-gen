@@ -169,7 +169,7 @@ def register_tasks(celery_app):
 
             # Load reference posts from ref.jinja2
             loaded_posts = load_reference_posts()
-            
+            logger.info(f"keywords: {reference_keywords}")
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
                 reference_keywords=reference_keywords,
@@ -219,7 +219,7 @@ def register_tasks(celery_app):
 
             # Load reference posts from ref.jinja2
             loaded_posts = load_reference_posts()
-            
+            logger.info(f"keywords: {reference_keywords}")
             template = jinja_env.get_template('post_template.jinja2')
             prompt = template.render(
                 idea=idea,
