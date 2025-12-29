@@ -15,6 +15,21 @@ logger = logging.getLogger(__name__)
 template_dir = os.path.join(os.path.dirname(__file__), '..', 'prompts')
 jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
+
+def load_reference_posts():
+    """Load reference posts content from ref.jinja2 file."""
+    ref_file = os.path.join(template_dir, 'ref.jinja2')
+    
+    try:
+        with open(ref_file, 'r') as f:
+            content = f.read()
+        logger.info("Loaded reference posts from ref.jinja2")
+        return content
+    
+    except Exception as e:
+        logger.warning(f"Failed to load reference posts: {str(e)}")
+        return ""
+
 # Initialize Google Generative AI
 if settings.GOOGLE_API_KEY:
     genai.configure(api_key=settings.GOOGLE_API_KEY)
@@ -52,10 +67,13 @@ def register_tasks(celery_app):
         try:
             self.update_state(state='PROGRESS', meta={'current': 'Rendering idea prompt'})
 
+            # Load reference posts from ref.jinja2
+            loaded_posts = load_reference_posts()
+            
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
                 reference_keywords=reference_keywords,
-                reference_posts=reference_posts or []
+                reference_posts=loaded_posts
             )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling Gemini API'})
@@ -97,11 +115,14 @@ def register_tasks(celery_app):
         try:
             self.update_state(state='PROGRESS', meta={'current': 'Rendering post prompt'})
 
+            # Load reference posts from ref.jinja2
+            loaded_posts = load_reference_posts()
+            
             template = jinja_env.get_template('post_template.jinja2')
             prompt = template.render(
                 idea=idea,
                 reference_keywords=reference_keywords,
-                reference_posts=reference_posts or []
+                reference_posts=loaded_posts
             )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling Gemini API'})
@@ -146,10 +167,13 @@ def register_tasks(celery_app):
         try:
             self.update_state(state='PROGRESS', meta={'current': 'Rendering idea prompt'})
 
+            # Load reference posts from ref.jinja2
+            loaded_posts = load_reference_posts()
+            
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
                 reference_keywords=reference_keywords,
-                reference_posts=reference_posts or []
+                reference_posts=loaded_posts
             )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})
@@ -193,11 +217,14 @@ def register_tasks(celery_app):
         try:
             self.update_state(state='PROGRESS', meta={'current': 'Rendering post prompt'})
 
+            # Load reference posts from ref.jinja2
+            loaded_posts = load_reference_posts()
+            
             template = jinja_env.get_template('post_template.jinja2')
             prompt = template.render(
                 idea=idea,
                 reference_keywords=reference_keywords,
-                reference_posts=reference_posts or []
+                reference_posts=loaded_posts
             )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})

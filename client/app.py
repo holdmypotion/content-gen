@@ -28,7 +28,12 @@ tab1, tab2 = st.tabs(["📚 Browse Entries", "✨ Generate New"])
 
 # TAB 1: Browse entries
 with tab1:
-    st.header("Generated Entries")
+    col1, col2 = st.columns([0.95, 0.05])
+    with col1:
+        st.header("Generated Entries")
+    with col2:
+        if st.button("🔄", help="Refresh entries"):
+            st.rerun()
     
     # Try to read JSON files from db directory
     try:
@@ -50,7 +55,8 @@ with tab1:
                         # Extract title from idea field if available
                         idea = data.get('idea', '')
                         if idea and '**Title:**' in idea:
-                            title = idea.split('**Title:**')[1].split('\n')[0].strip()
+                            lines = idea.split('**Title:**')[1].split('\n')
+                            title = next((line.strip() for line in lines if line.strip()), f.name)
                         else:
                             title = data.get('reference_keywords', f.name)
                         file_options[title] = f.name
