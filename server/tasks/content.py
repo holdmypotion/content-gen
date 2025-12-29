@@ -22,7 +22,6 @@ def load_reference_posts():
     try:
         with open(ref_file, 'r') as f:
             content = f.read()
-        logger.info("Loaded reference posts from ref.jinja2")
         return content
 
     except Exception as e:
@@ -75,8 +74,6 @@ def register_tasks(celery_app):
             model = genai.GenerativeModel(settings.GOOGLE_MODEL)
             response = model.generate_content(prompt)
             idea = response.text
-
-            logger.info(f"Successfully generated idea with Gemini for keywords: {reference_keywords}")
 
             idea_data = {
                     'timestamp': datetime.now().isoformat(),
@@ -175,7 +172,6 @@ def register_tasks(celery_app):
 
             # Load reference posts from ref.jinja2
             loaded_posts = load_reference_posts()
-            logger.info(f"keywords: {reference_keywords}")
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
                     reference_keywords=reference_keywords,
@@ -189,8 +185,6 @@ def register_tasks(celery_app):
                     messages=[{"role": "user", "content": prompt}]
                     )
             idea = response.choices[0].message.content
-
-            logger.info(f"Successfully generated idea with GPT for keywords: {reference_keywords}")
 
             idea_data = {
                     'timestamp': datetime.now().isoformat(),
@@ -225,7 +219,6 @@ def register_tasks(celery_app):
 
             # Load reference posts from ref.jinja2
             loaded_posts = load_reference_posts()
-            logger.info(f"keywords: {reference_keywords}")
             template = jinja_env.get_template('post_template.jinja2')
             prompt = template.render(
                     idea=idea,
