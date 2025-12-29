@@ -1,10 +1,7 @@
 import streamlit as st
 import requests
 import time
-import json
-import os
 from datetime import datetime
-from pathlib import Path
 
 # Page configuration
 st.set_page_config(
@@ -17,7 +14,6 @@ st.title("Content Generator")
 
 # Backend API endpoint
 BACKEND_URL = "http://backend:8000"  # Use service name in Docker network
-DB_PATH = "/app/db"  # Path inside container (but we'll fetch from backend if needed)
 
 # Initialize session state
 if "is_generating" not in st.session_state:
@@ -35,112 +31,135 @@ with tab1:
         if st.button("🔄", help="Refresh entries"):
             st.rerun()
 
-    # Try to read JSON files from db directory
+    # Fetch contents from MongoDB via API
     try:
-        db_files = sorted(
-                Path(DB_PATH).glob("content_*.json"),
-                key=lambda x: x.stat().st_mtime,
-                reverse=True
-                )
+        response = requests.get(f"{BACKEND_URL}/contents?skip=0&limit=100", timeout=10)
+        response.raise_for_status()
+        contents = response.json()
 
-        if not db_files:
+        if not contents:
             st.info("No generated entries found yet.")
         else:
-            # Load titles from all files
-            file_options = {}
-            for f in db_files:
-                try:
-                    with open(f, 'r') as file:
-                        data = json.load(file)
-                        # Extract title from idea field if available
-                        idea = data.get('idea', '')
-                        if idea and '**Title:**' in idea:
-                            lines = idea.split('**Title:**')[1].split('\n')
-                            title = next((line.strip() for line in lines if line.strip()), f.name)
-                        else:
-                            title = data.get('reference_keywords', f.name)
-                        file_options[title] = f.name
-                except:
-                    file_options[f.name] = f.name
+            # Create title to ID mapping
+            entry_options = {}
+            for content in contents:
+                # Extract title from idea field if available
+                idea = content.get('idea', '')
+                if idea and '**Title:**' in idea:
+                    lines = idea.split('**Title:**')[1].split('\n')
+                    title = next((line.strip() for line in lines if line.strip()), content.get('reference_keywords', 'Unknown'))
+                else:
+                    title = content.get('reference_keywords', 'Unknown')
 
-            # Create a selectbox with titles instead of filenames
-            selected_title = st.selectbox("Select an entry:", list(file_options.keys()))
-            selected_file = file_options[selected_title]
+                content_id = content.get('_id') or content.get('id')
+                if content_id:
+                    entry_options[title] = content_id
 
-            if selected_file:
-                file_path = Path(DB_PATH) / selected_file
-                with open(file_path, 'r') as f:
-                    data = json.load(f)
+            if not entry_options:
+                st.warning("No entries with valid IDs found.")
+            else:
+                # Create a selectbox with titles instead of IDs
+                selected_title = st.selectbox("Select an entry:", list(entry_options.keys()))
+                selected_id = entry_options.get(selected_title)
 
-                # Display entry details
-                col1, col2 = st.columns([1, 1])
+                if selected_id:
+                    # Fetch the specific content
+                    content_response = requests.get(f"{BACKEND_URL}/content/{selected_id}", timeout=10)
+                    content_response.raise_for_status()
+                    data = content_response.json()
 
-                with col1:
-                    st.subheader("📋 Entry Info")
-                    st.write(f"**File:** {selected_file}")
-                    st.write(f"**Created:** {data.get('timestamp', 'N/A')}")
-                    st.write(f"**Provider:** {data.get('provider', 'N/A')}")
-                    st.write(f"**Keywords:** {data.get('reference_keywords', 'N/A')}")
+                    # Display entry details
+                    col1, col2 = st.columns([1, 1])
 
-                with col2:
-                    st.subheader("📊 Status")
-                    has_idea = 'idea' in data
-                    has_post = 'post' in data
-                    st.write(f"**Idea Generated:** {'✅' if has_idea else '❌'}")
-                    st.write(f"**Post Generated:** {'✅' if has_post else '❌'}")
-
-                # Display idea
-                if has_idea:
-                    st.subheader("💡 Idea")
-                    st.write(data.get('idea'))
-
-                # Display post
-                if has_post:
-                    st.subheader("📝 Post")
-
-                    # Initialize edit state for this file
-                    edit_key = f"edit_{selected_file}"
-                    if edit_key not in st.session_state:
-                        st.session_state[edit_key] = False
-
-                    col1, col2 = st.columns([0.95, 0.05])
                     with col1:
-                        if st.session_state[edit_key]:
-                            # Edit mode
-                            edited_post = st.text_area(
-                                    "Edit Post",
-                                    value=data.get('post'),
-                                    height=250,
-                                    label_visibility="collapsed"
-                                    )
-                            col_save, col_cancel = st.columns(2)
-                            with col_save:
-                                if st.button("💾 Save", key=f"save_{selected_file}", use_container_width=True):
-                                    # Update the data
-                                    data['post'] = edited_post
-                                    # Save back to file
-                                    try:
-                                        with open(file_path, 'w') as f:
-                                            json.dump(data, f, indent=2)
-                                        st.session_state[edit_key] = False
-                                        st.success("Post saved successfully!")
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Failed to save: {str(e)}")
-                            with col_cancel:
-                                if st.button("❌ Cancel", key=f"cancel_{selected_file}", use_container_width=True):
-                                    st.session_state[edit_key] = False
+                        st.subheader("📋 Entry Info")
+                        entry_id = data.get('_id') or data.get('id')
+                        st.write(f"**ID:** {entry_id}")
+                        st.write(f"**Created:** {data.get('timestamp', 'N/A')}")
+                        st.write(f"**Provider:** {data.get('provider', 'N/A')}")
+
+                        # Input Prompt with modal
+                        prompt_text = data.get('reference_keywords', 'N/A')
+                        col_prompt, col_view = st.columns([0.85, 0.15])
+                        with col_prompt:
+                            # Truncate for display
+                            display_text = (prompt_text[:50] + "...") if len(prompt_text) > 50 else prompt_text
+                            st.write(f"**Input Prompt:** {display_text}")
+                        with col_view:
+                            if st.button("👁️", key=f"view_prompt_{selected_id}", help="View full input prompt"):
+                                st.session_state[f"show_prompt_modal_{selected_id}"] = True
+
+                        # Modal for full prompt
+                        if st.session_state.get(f"show_prompt_modal_{selected_id}", False):
+                            with st.expander("📝 Full Input Prompt", expanded=True):
+                                st.text(prompt_text)
+                                if st.button("Close", key=f"close_prompt_{selected_id}", use_container_width=True):
+                                    st.session_state[f"show_prompt_modal_{selected_id}"] = False
                                     st.rerun()
-                        else:
-                            # View mode
-                            st.write(data.get('post'))
 
                     with col2:
-                        if not st.session_state[edit_key]:
-                            if st.button("✏️", key=f"edit_btn_{selected_file}", help="Edit post"):
-                                st.session_state[edit_key] = True
-                                st.rerun()
+                        st.subheader("📊 Status")
+                        has_idea = 'idea' in data and data['idea']
+                        has_post = 'post' in data and data['post']
+                        st.write(f"**Idea Generated:** {'✅' if has_idea else '❌'}")
+                        st.write(f"**Post Generated:** {'✅' if has_post else '❌'}")
 
+                    # Display idea
+                    if has_idea:
+                        st.subheader("💡 Idea")
+                        st.write(data.get('idea'))
+
+                    # Display post
+                    if has_post:
+                        st.subheader("📝 Post")
+
+                        # Initialize edit state for this entry
+                        edit_key = f"edit_{selected_id}"
+                        if edit_key not in st.session_state:
+                            st.session_state[edit_key] = False
+
+                        col1, col2 = st.columns([0.95, 0.05])
+                        with col1:
+                            if st.session_state[edit_key]:
+                                # Edit mode
+                                edited_post = st.text_area(
+                                        "Edit Post",
+                                        value=data.get('post'),
+                                        height=250,
+                                        label_visibility="collapsed"
+                                        )
+                                col_save, col_cancel = st.columns(2)
+                                with col_save:
+                                    if st.button("💾 Save", key=f"save_{selected_id}", use_container_width=True):
+                                        # Update via API
+                                        try:
+                                            update_response = requests.put(
+                                                    f"{BACKEND_URL}/content/{selected_id}",
+                                                    json={"post": edited_post},
+                                                    timeout=10
+                                                    )
+                                            update_response.raise_for_status()
+                                            st.session_state[edit_key] = False
+                                            st.success("Post saved successfully!")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Failed to save: {str(e)}")
+                                with col_cancel:
+                                    if st.button("❌ Cancel", key=f"cancel_{selected_id}", use_container_width=True):
+                                        st.session_state[edit_key] = False
+                                        st.rerun()
+                            else:
+                                # View mode
+                                st.write(data.get('post'))
+
+                        with col2:
+                            if not st.session_state[edit_key]:
+                                if st.button("✏️", key=f"edit_btn_{selected_id}", help="Edit post"):
+                                    st.session_state[edit_key] = True
+                                    st.rerun()
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error connecting to backend: {str(e)}")
     except Exception as e:
         st.error(f"Error reading entries: {str(e)}")
 
@@ -151,10 +170,10 @@ with tab2:
     # Provider selection
     provider = st.selectbox("Select Provider", ["gpt", "gemini"])
 
-    # Input for reference keywords
+    # Input for input prompt
     reference_keywords = st.text_area(
-            "Reference Keywords",
-            placeholder="Enter keywords or reference topics separated by commas or newlines...",
+            "Input Prompt",
+            placeholder="Enter your input prompt, keywords, or webpage links...",
             height=120
             )
 

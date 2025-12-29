@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
 
+    # MongoDB
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "content_gen"
+
     # Google Generative AI
     GOOGLE_API_KEY: Optional[str] = None
     GOOGLE_MODEL: str = "gemini-2.5-flash"

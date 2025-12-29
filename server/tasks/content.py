@@ -3,11 +3,10 @@ import google.generativeai as genai
 import openai
 from jinja2 import Environment, FileSystemLoader
 import os
-import json
 from datetime import datetime
-from pathlib import Path
 
 from config import settings
+from db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +18,13 @@ jinja_env = Environment(loader=FileSystemLoader(template_dir))
 def load_reference_posts():
     """Load reference posts content from ref.jinja2 file."""
     ref_file = os.path.join(template_dir, 'ref.jinja2')
-    
+
     try:
         with open(ref_file, 'r') as f:
             content = f.read()
         logger.info("Loaded reference posts from ref.jinja2")
         return content
-    
+
     except Exception as e:
         logger.warning(f"Failed to load reference posts: {str(e)}")
         return ""
@@ -38,22 +37,17 @@ if settings.GOOGLE_API_KEY:
 if settings.OPENAI_API_KEY:
     openai.api_key = settings.OPENAI_API_KEY
 
-# Setup database directory for JSON storage
-db_dir = os.path.join(os.path.dirname(__file__), '..', 'db')
-Path(db_dir).mkdir(parents=True, exist_ok=True)
-
 
 def save_to_db(data: dict) -> str:
-    """Save data to timestamped JSON file in db directory."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
-    filename = f"content_{timestamp}.json"
-    filepath = os.path.join(db_dir, filename)
-
-    with open(filepath, 'w') as f:
-        json.dump(data, f, indent=2)
-
-    logger.info(f"Data saved to {filepath}")
-    return filepath
+    """Save data to MongoDB."""
+    try:
+        db = get_db()
+        document_id = db.save_content(data)
+        logger.info(f"Data saved to MongoDB with ID: {document_id}")
+        return document_id
+    except Exception as e:
+        logger.error(f"Error saving to MongoDB: {str(e)}")
+        raise
 
 
 def register_tasks(celery_app):
@@ -69,12 +63,12 @@ def register_tasks(celery_app):
 
             # Load reference posts from ref.jinja2
             loaded_posts = load_reference_posts()
-            
+
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
-                reference_keywords=reference_keywords,
-                reference_posts=loaded_posts
-            )
+                    reference_keywords=reference_keywords,
+                    reference_posts=loaded_posts
+                    )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling Gemini API'})
 
@@ -85,21 +79,21 @@ def register_tasks(celery_app):
             logger.info(f"Successfully generated idea with Gemini for keywords: {reference_keywords}")
 
             idea_data = {
-                'timestamp': datetime.now().isoformat(),
-                'type': 'idea',
-                'provider': 'gemini',
-                'reference_keywords': reference_keywords,
-                'reference_posts': reference_posts or [],
-                'idea': idea
-            }
+                    'timestamp': datetime.now().isoformat(),
+                    'type': 'idea',
+                    'provider': 'gemini',
+                    'reference_keywords': reference_keywords,
+                    'reference_posts': reference_posts or [],
+                    'idea': idea
+                    }
             db_file = save_to_db(idea_data)
 
             generate_post_gemini.delay(
-                idea=idea,
-                reference_keywords=reference_keywords,
-                reference_posts=reference_posts or [],
-                db_file=db_file
-            )
+                    idea=idea,
+                    reference_keywords=reference_keywords,
+                    reference_posts=reference_posts or [],
+                    db_file=db_file
+                    )
 
             return {'status': 'success', 'idea': idea, 'db_file': db_file}
 
@@ -117,13 +111,13 @@ def register_tasks(celery_app):
 
             # Load reference posts from ref.jinja2
             loaded_posts = load_reference_posts()
-            
+
             template = jinja_env.get_template('post_template.jinja2')
             prompt = template.render(
-                idea=idea,
-                reference_keywords=reference_keywords,
-                reference_posts=loaded_posts
-            )
+                    idea=idea,
+                    reference_keywords=reference_keywords,
+                    reference_posts=loaded_posts
+                    )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling Gemini API'})
 
@@ -133,24 +127,36 @@ def register_tasks(celery_app):
 
             logger.info(f"Successfully generated post with Gemini for idea: {idea[:50]}...")
 
-            if db_file and os.path.exists(db_file):
-                with open(db_file, 'r') as f:
-                    data = json.load(f)
-                data['post'] = post
-                data['post_generated_at'] = datetime.now().isoformat()
-                with open(db_file, 'w') as f:
-                    json.dump(data, f, indent=2)
-                logger.info(f"Post added to {db_file}")
+            if db_file:
+                try:
+                    db = get_db()
+                    db.update_content(db_file, {
+                        'post': post,
+                        'post_generated_at': datetime.now().isoformat()
+                        })
+                    logger.info(f"Post added to document {db_file}")
+                except Exception as e:
+                    logger.warning(f"Could not update document {db_file}: {str(e)}, creating new")
+                    post_data = {
+                            'timestamp': datetime.now().isoformat(),
+                            'type': 'post',
+                            'provider': 'gemini',
+                            'reference_keywords': reference_keywords,
+                            'reference_posts': reference_posts or [],
+                            'idea': idea,
+                            'post': post
+                            }
+                    db_file = save_to_db(post_data)
             else:
                 post_data = {
-                    'timestamp': datetime.now().isoformat(),
-                    'type': 'post',
-                    'provider': 'gemini',
-                    'reference_keywords': reference_keywords,
-                    'reference_posts': reference_posts or [],
-                    'idea': idea,
-                    'post': post
-                }
+                        'timestamp': datetime.now().isoformat(),
+                        'type': 'post',
+                        'provider': 'gemini',
+                        'reference_keywords': reference_keywords,
+                        'reference_posts': reference_posts or [],
+                        'idea': idea,
+                        'post': post
+                        }
                 db_file = save_to_db(post_data)
 
             return {'status': 'success', 'post': post, 'db_file': db_file}
@@ -172,36 +178,36 @@ def register_tasks(celery_app):
             logger.info(f"keywords: {reference_keywords}")
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
-                reference_keywords=reference_keywords,
-                reference_posts=loaded_posts
-            )
+                    reference_keywords=reference_keywords,
+                    reference_posts=loaded_posts
+                    )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})
 
             response = openai.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[{"role": "user", "content": prompt}]
-            )
+                    model=settings.OPENAI_MODEL,
+                    messages=[{"role": "user", "content": prompt}]
+                    )
             idea = response.choices[0].message.content
 
             logger.info(f"Successfully generated idea with GPT for keywords: {reference_keywords}")
 
             idea_data = {
-                'timestamp': datetime.now().isoformat(),
-                'type': 'idea',
-                'provider': 'gpt',
-                'reference_keywords': reference_keywords,
-                'reference_posts': reference_posts or [],
-                'idea': idea
-            }
+                    'timestamp': datetime.now().isoformat(),
+                    'type': 'idea',
+                    'provider': 'gpt',
+                    'reference_keywords': reference_keywords,
+                    'reference_posts': reference_posts or [],
+                    'idea': idea
+                    }
             db_file = save_to_db(idea_data)
 
             generate_post_gpt.delay(
-                idea=idea,
-                reference_keywords=reference_keywords,
-                reference_posts=reference_posts or [],
-                db_file=db_file
-            )
+                    idea=idea,
+                    reference_keywords=reference_keywords,
+                    reference_posts=reference_posts or [],
+                    db_file=db_file
+                    )
 
             return {'status': 'success', 'idea': idea, 'db_file': db_file}
 
@@ -222,39 +228,51 @@ def register_tasks(celery_app):
             logger.info(f"keywords: {reference_keywords}")
             template = jinja_env.get_template('post_template.jinja2')
             prompt = template.render(
-                idea=idea,
-                reference_keywords=reference_keywords,
-                reference_posts=loaded_posts
-            )
+                    idea=idea,
+                    reference_keywords=reference_keywords,
+                    reference_posts=loaded_posts
+                    )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})
 
             response = openai.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[{"role": "user", "content": prompt}]
-            )
+                    model=settings.OPENAI_MODEL,
+                    messages=[{"role": "user", "content": prompt}]
+                    )
             post = response.choices[0].message.content
 
             logger.info(f"Successfully generated post with GPT for idea: {idea[:50]}...")
 
-            if db_file and os.path.exists(db_file):
-                with open(db_file, 'r') as f:
-                    data = json.load(f)
-                data['post'] = post
-                data['post_generated_at'] = datetime.now().isoformat()
-                with open(db_file, 'w') as f:
-                    json.dump(data, f, indent=2)
-                logger.info(f"Post added to {db_file}")
+            if db_file:
+                try:
+                    db = get_db()
+                    db.update_content(db_file, {
+                        'post': post,
+                        'post_generated_at': datetime.now().isoformat()
+                        })
+                    logger.info(f"Post added to document {db_file}")
+                except Exception as e:
+                    logger.warning(f"Could not update document {db_file}: {str(e)}, creating new")
+                    post_data = {
+                            'timestamp': datetime.now().isoformat(),
+                            'type': 'post',
+                            'provider': 'gpt',
+                            'reference_keywords': reference_keywords,
+                            'reference_posts': reference_posts or [],
+                            'idea': idea,
+                            'post': post
+                            }
+                    db_file = save_to_db(post_data)
             else:
                 post_data = {
-                    'timestamp': datetime.now().isoformat(),
-                    'type': 'post',
-                    'provider': 'gpt',
-                    'reference_keywords': reference_keywords,
-                    'reference_posts': reference_posts or [],
-                    'idea': idea,
-                    'post': post
-                }
+                        'timestamp': datetime.now().isoformat(),
+                        'type': 'post',
+                        'provider': 'gpt',
+                        'reference_keywords': reference_keywords,
+                        'reference_posts': reference_posts or [],
+                        'idea': idea,
+                        'post': post
+                        }
                 db_file = save_to_db(post_data)
 
             return {'status': 'success', 'post': post, 'db_file': db_file}

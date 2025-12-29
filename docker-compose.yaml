@@ -9,9 +9,9 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
     volumes:
       - ./server:/app
-      - ./db:/app/db
     depends_on:
       - redis
     networks:
@@ -25,9 +25,9 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
     volumes:
       - ./server:/app
-      - ./db:/app/db
     command: celery -A celery_app worker --loglevel=info
     depends_on:
       - redis
@@ -47,7 +47,6 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./client:/app
-      - ./db:/app/db
     depends_on:
       - backend
     networks:
