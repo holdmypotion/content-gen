@@ -45,11 +45,15 @@ with tab1:
             for content in contents:
                 # Extract title from idea field if available
                 idea = content.get('idea', '')
-                if idea and '**Title:**' in idea:
-                    lines = idea.split('**Title:**')[1].split('\n')
-                    title = next((line.strip() for line in lines if line.strip()), content.get('reference_keywords', 'Unknown'))
-                else:
-                    title = content.get('reference_keywords', 'Unknown')
+                title = content.get('reference_keywords', 'Unknown')
+                
+                if idea:
+                    if '**Title:**' in idea:
+                        lines = idea.split('**Title:**')[1].split('\n')
+                        title = next((line.strip() for line in lines if line.strip()), title)
+                    elif 'Title:' in idea:
+                        lines = idea.split('Title:')[1].split('\n')
+                        title = next((line.strip() for line in lines if line.strip()), title)
 
                 content_id = content.get('_id') or content.get('id')
                 if content_id:
@@ -118,7 +122,7 @@ with tab1:
                         if edit_key not in st.session_state:
                             st.session_state[edit_key] = False
 
-                        col1, col2 = st.columns([0.95, 0.05])
+                        col1, col2, col3 = st.columns([0.90, 0.05, 0.05])
                         with col1:
                             if st.session_state[edit_key]:
                                 # Edit mode
@@ -137,7 +141,7 @@ with tab1:
                                                     f"{BACKEND_URL}/content/{selected_id}",
                                                     json={"post": edited_post},
                                                     timeout=10
-                                                    )
+                                            )
                                             update_response.raise_for_status()
                                             st.session_state[edit_key] = False
                                             st.success("Post saved successfully!")
@@ -150,9 +154,9 @@ with tab1:
                                         st.rerun()
                             else:
                                 # View mode
-                                st.write(data.get('post'))
+                                st.code(data.get('post'), language="markdown")
 
-                        with col2:
+                        with col3:
                             if not st.session_state[edit_key]:
                                 if st.button("✏️", key=f"edit_btn_{selected_id}", help="Edit post"):
                                     st.session_state[edit_key] = True

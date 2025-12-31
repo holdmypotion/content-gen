@@ -4,7 +4,6 @@ import openai
 from jinja2 import Environment, FileSystemLoader
 import os
 from datetime import datetime
-
 from config import settings
 from db import get_db
 
@@ -27,6 +26,7 @@ def load_reference_posts():
     except Exception as e:
         logger.warning(f"Failed to load reference posts: {str(e)}")
         return ""
+
 
 # Initialize Google Generative AI
 if settings.GOOGLE_API_KEY:
@@ -75,6 +75,12 @@ def register_tasks(celery_app):
             response = model.generate_content(prompt)
             idea = response.text
 
+            # Log token usage
+            if hasattr(response, 'usage_metadata'):
+                logger.info(f"Gemini idea generation - Prompt tokens: {response.usage_metadata.prompt_token_count}, "
+                            f"Completion tokens: {response.usage_metadata.candidates_token_count}, "
+                            f"Total tokens: {response.usage_metadata.prompt_token_count + response.usage_metadata.candidates_token_count}")
+
             idea_data = {
                     'timestamp': datetime.now().isoformat(),
                     'type': 'idea',
@@ -121,6 +127,12 @@ def register_tasks(celery_app):
             model = genai.GenerativeModel(settings.GOOGLE_MODEL)
             response = model.generate_content(prompt)
             post = response.text
+
+            # Log token usage
+            if hasattr(response, 'usage_metadata'):
+                logger.info(f"Gemini post generation - Prompt tokens: {response.usage_metadata.prompt_token_count}, "
+                            f"Completion tokens: {response.usage_metadata.candidates_token_count}, "
+                            f"Total tokens: {response.usage_metadata.prompt_token_count + response.usage_metadata.candidates_token_count}")
 
             logger.info(f"Successfully generated post with Gemini for idea: {idea[:50]}...")
 
@@ -175,7 +187,6 @@ def register_tasks(celery_app):
             template = jinja_env.get_template('idea_template.jinja2')
             prompt = template.render(
                     reference_keywords=reference_keywords,
-                    reference_posts=loaded_posts
                     )
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})
@@ -186,11 +197,17 @@ def register_tasks(celery_app):
                     )
             idea = response.choices[0].message.content
 
+            # Log token usage
+            if hasattr(response, 'usage'):
+                logger.info(f"OpenAI idea generation - Prompt tokens: {response.usage.prompt_tokens}, "
+                            f"Completion tokens: {response.usage.completion_tokens}, "
+                            f"Total tokens: {response.usage.total_tokens}")
+
             idea_data = {
                     'timestamp': datetime.now().isoformat(),
                     'type': 'idea',
-                    'provider': 'gpt',
                     'reference_keywords': reference_keywords,
+                    'provider': 'gpt',
                     'reference_posts': reference_posts or [],
                     'idea': idea
                     }
@@ -228,11 +245,19 @@ def register_tasks(celery_app):
 
             self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})
 
+            logger.info(f"Prompt: {prompt}")
+
             response = openai.chat.completions.create(
                     model=settings.OPENAI_MODEL,
                     messages=[{"role": "user", "content": prompt}]
                     )
             post = response.choices[0].message.content
+
+            # Log token usage
+            if hasattr(response, 'usage'):
+                logger.info(f"OpenAI post generation - Prompt tokens: {response.usage.prompt_tokens}, "
+                            f"Completion tokens: {response.usage.completion_tokens}, "
+                            f"Total tokens: {response.usage.total_tokens}")
 
             logger.info(f"Successfully generated post with GPT for idea: {idea[:50]}...")
 

@@ -1,4 +1,9 @@
 <post_1>
+title: LinkedIn's Feed
+Base Idea: Explain the system design behind LinkedIn's real-time feed.
+Description: A post explaining that LinkedIn uses a specialized search engine (Galene) with an inverted index and near real-time updates via Kafka to build the user's feed. It prioritizes speed over perfect accuracy by using "early termination" to find "good enough" content quickly.
+content:
+```
 How LinkedIn serves the feed you are scrolling right now ?
 
 You are reading this post. But how did it get here? LinkedIn has 1 billion members. If I post this, how does the system know to show it to you specifically within milliseconds?
@@ -17,10 +22,16 @@ It ranks the potential matches based on a lightweight score (affinity, recency).
 
 Great search engineering isn't about finding every result. It’s about finding the good enough results fast enough to keep the user scrolling.
 
-#LinkedInEngineering #SearchEngine #Kafka #SystemDesign #BigData
+hashtag#LinkedInEngineering hashtag#SearchEngine hashtag#Kafka hashtag#SystemDesign hashtag#BigData
+```
 </post_1>
 
 <post_2>
+title: Uber's MySQL High Availability
+Base Idea: Explain Uber's transition to a consensus-based architecture for MySQL high availability.
+Description: A post detailing how Uber moved from a traditional, reactive primary-secondary MySQL setup to a more robust consensus-based system using MySQL Group Replication (MGR). It highlights the engineering challenges of implementing MGR at scale and the custom solutions Uber built to achieve true high availability.
+content:
+```
 MySQL broke at Uber. Here is how they fixed it.
 
 When you run at Uber's scale (Petabytes of data, millions of QPS), the textbook answer stops working.
@@ -59,9 +70,15 @@ The Lesson
 "High Availability" isn't a setting you toggle in your cloud provider.
 It is an architectural decision between Eventual Consistency (fast, risky) and Consensus (complex, robust).
 Uber chose complexity to buy reliability.
+```
 </post_2>
 
 <post_3>
+title: HyperLogLog
+Base Idea: Explain the HyperLogLog algorithm for efficient cardinality estimation.
+Description: A post explaining the HyperLogLog algorithm for estimating large unique counts with very little memory. It uses an analogy of coin flips to describe how observing rare patterns (like a long run of leading zeros in a hash) can estimate the total number of items.
+content:
+```
 If you have 100 million rows, calculating the exact unique count is expensive. You have to store every single ID in a HashSet in memory to check for duplicates.
 
 Cost: ~4 GB of RAM.
@@ -116,9 +133,15 @@ The Real-World Stack: Redis has this built-in.
 The Takeaway: In Big Data, "Exact" is the enemy of "Fast." For a dashboard, knowing you have "10.1 Million" users is just as good as "10,142,592"—and it costs 99% less to compute.
 The Estimate:
 At the end, the estimated count is simply: 2^{Max_Zeros}
+```
 </post_3>
 
 <post_4>
+title: UDP vs. TCP for Video
+Base Idea: Compare the use of TCP and UDP in different types of video streaming.
+Description: A post comparing why real-time video services like Zoom use UDP, while on-demand services like Netflix use TCP. It explains the trade-off: Zoom prioritizes latency (accepting glitches), whereas Netflix prioritizes quality (using buffering and retransmissions).
+content:
+```
 If you drop a packet on Zoom, the video glitches. If you drop a packet on Netflix, you never notice.
 Why? Because they are solving two completely different physics problems.
 
@@ -139,10 +162,16 @@ It gives them the reliable delivery of TCP without the "Head-of-Line Blocking" l
 
 The Takeaway: Don't memorize "Video uses UDP." Understand the constraint: Is the user interacting (UDP)? or Consuming (TCP)?
 
-#SystemDesign #Netflix #Streaming #TCP #UDP #Engineering
+hashtag#SystemDesign hashtag#Netflix hashtag#Streaming hashtag#TCP hashtag#UDP hashtag#Engineering
+```
 </post_4>
 
 <post_5>
+title: Forward Error Correction
+Base Idea: Explain Forward Error Correction (FEC) in real-time video streaming.
+Description: A post explaining how real-time video applications handle packet loss without freezing. It describes how Forward Error Correction (FEC) sends redundant data, allowing the client to instantly reconstruct lost packets mathematically, trading more bandwidth for zero-latency recovery.
+content:
+```
 If Zoom used TCP, your video would freeze every time you blinked.
 
 In 99% of software engineering, "Packet Loss" is an error. In Real-Time Video, "Packet Loss" is a feature.
@@ -168,9 +197,15 @@ The Algorithm (Simplified XOR):
 Recovery: The receiver gets B and C. It calculates C XOR B.
 Result: It mathematically reconstructs Packet A instantly. 🤯
 The Trade-off: You use 50% more bandwidth (sending redundant packets) to gain Zero Latency Recovery.
+```
 </post_5>
 
 <post_6>
+title: Pinterest's Database Sharding
+Base Idea: Explain Pinterest's manual MySQL sharding strategy for massive scale.
+Description: A post describing how Pinterest scaled its database by moving relationship logic to the application layer. It explains their custom ID system that encodes the shard location and how they replaced database JOINs with "mapping tables."
+content:
+```
 When Pinterest hit 100 million users, their MySQL cluster was dying. The problem wasn't the data size. It was the complexity of the relationships.
 Users follow Boards. Boards have Pins. Pins have Likes. A single page load required massive JOIN operations across tables with billions of rows. 
 
@@ -201,10 +236,16 @@ The Takeaway: Relational databases are great at relationships—until you shard.
 
 But, this was 2013. If you had to do this today, you would use some modern ways to get past these issues. Let me know in the comments, what will you use ?
 
-#SystemDesign #Pinterest #MySQL #Sharding #Database #Scalability
+hashtag#SystemDesign hashtag#Pinterest hashtag#MySQL hashtag#Sharding hashtag#Database hashtag#Scalability
+```
 </post_6>
 
 <post_7>
+title : Consistent Hashing
+Base Idea: Explain the concept of Consistent Hashing for distributed systems.
+Description: A post explaining why simple modulo hashing fails when servers are added or removed. It then introduces Consistent Hashing as the solution, using the analogy of a "ring" to show how it minimizes data movement and improves scalability.
+content:
+```
 If you are building a distributed cache or sharding a database, your first instinct is usually Modulo Hashing.
 
 server_index = hash(key) % N
@@ -239,5 +280,6 @@ Why this is genius:
 
 Scalability isn't just about handling traffic. It's about handling topology changes gracefully.
 If scaling up causes downtime, you didn't scale; you just rebooted.
-#SystemDesign #Algorithms #DistributedSystems #DynamoDB #Cassandra
+hashtag#SystemDesign hashtag#Algorithms hashtag#DistributedSystems hashtag#DynamoDB hashtag#Cassandra
+```
 </post_7>

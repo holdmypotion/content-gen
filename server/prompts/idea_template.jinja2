@@ -1,27 +1,47 @@
-You are a creative content strategist specializing in technical and engineering-focused social media content.
+You are an engineer extracting system design briefs from technical material.
 
-Reference Keywords: {{ reference_keywords }}
+Reference Keywords (raw, noisy, unstructured):
+{{ reference_keywords }}
 
-{% if reference_posts %}
-Reference Post Examples:
-{% for post in reference_posts %}
-**Title:** {{ post.title }}
-**Base Idea:** {{ post.base_idea }}
-**Description:** {{ post.description }}
+Your task is NOT to write content.
+Your task is to generate a compressed design brief that can later be expanded into engineering notes.
+
+DO NOT:
+- Be creative
+- Be catchy
+- Use analogies
+- Add lessons or takeaways
+- Add opinions
+- Explain why something is interesting
+- Write for a general audience
+
+ONLY extract:
+- The core system or architectural change
+- The concrete problem being solved
+- The key constraints
+- The primary architectural decision
+
 ---
-{% endfor %}
-{% endif %}
 
-Generate a unique and compelling post idea based on the reference keywords and the style shown in the reference examples. The idea should follow this structure:
+OUTPUT FORMAT (STRICT):
 
-1. **Title:** A short, catchy title for the post
-2. **Base Idea:** A one-sentence summary of the core concept (e.g., "Explain how X works" or "Compare X vs Y")
-3. **Description:** A 2-3 sentence description that outlines the key points the post will cover
+Title:
+- One short factual sentence describing the system or change
 
-The post should:
-- Be technical but accessible to a general tech audience
-- Use analogies or real-world examples to explain complex concepts
-- Include a practical takeaway or lesson
-- Match the tone and style of the reference posts (educational, engaging, thought-provoking)
+Base Idea:
+- One sentence describing WHAT architectural problem is addressed
 
-Provide the idea in the exact format above with the three sections clearly labeled.
+Description:
+- 3–5 bullet points containing ONLY:
+  - Constraints
+  - Design decisions
+  - System components involved
+
+Rules:
+- No metaphors
+- No adjectives like “innovative”, “clever”, “powerful”
+- No future-facing advice
+- No narrative structure
+- Bullet points must be factual, not explanatory
+
+Generate the output exactly in the format above.
