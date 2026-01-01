@@ -62,60 +62,19 @@ Uber chose complexity to buy reliability.
 </post_2>
 
 <post_3>
-If you have 100 million rows, calculating the exact unique count is expensive. You have to store every single ID in a HashSet in memory to check for duplicates.
+Here's something interesting about cache eviction - instead of tracking the exact LRU (Least Recently Used) item, we can just pick two random items and evict the older one.
 
-Cost: ~4 GB of RAM.
-Speed: Slow.
+This is called "2-random," and it works surprisingly well.
 
-But what if you only have 12 KB of RAM?
-The Solution: HyperLogLog (HLL) 📊
+The idea is simple. When we need to evict something from our cache, randomly sample two keys, compare their last access times, and evict the one that was accessed longer ago. That's it.
 
-HyperLogLog is a probabilistic algorithm that estimates cardinality (unique counts) with massive memory savings.
+Why not just track true LRU? because, maintaining a perfect LRU requires extra memory and CPU overhead. We need a doubly linked list with pointers for every cache entry, plus the cost of updating it on every access.
 
-Standard Set: Memory grows linearly with data (100M items = Huge RAM).
+Btw, picking two keys at random and evicting the least recently used of the two becomes virtually indistinguishable from true LRU. It works because it avoids the worst random choices (by picking the better of two) while retaining enough randomness.
 
-HyperLogLog: Memory is fixed. 12 KB. Always.
+2-random also degrades gracefully when your working set exceeds the cache size. True LRU can cause near-100% cache misses when looping over data larger than the cache. Random eviction handles this better, and 2-random gives you the best of both worlds.
 
-HyperLogLog relies on observing rare events to estimate the total volume of data.
-
-- Imagine I am in a dark room flipping a fair coin. You walk in and ask: "How long have you been flipping this coin?"
-- I reply: "I'm not sure, but the longest run of Heads I got in a row was 3."
-- Your Guess: "3 heads (H-H-H) has a probability of $1/8$. You probably flipped the coin about 8 times."
-
-- I reply: "Wait, actually, I just got a run of 10 Heads in a row."
-- Your Guess: "Whoa. 10 heads (H-H-H-H-H-H-H-H-H-H) has a probability of 1/1024. You have probably been flipping this coin over 1,000 times."
-
-The Core Rule: The "rarer" the maximum streak, the more trials (unique items) must have occurred to produce it.
-
-How HLL does this with Data
-
-Hashing (The Coin Flip):
-When a user ID comes in (e.g., "User_55"), HLL runs it through a Hash Function. This turns the ID into a random binary string, like 0010110....
-- 0 is Heads.
-- 1 is Tails.
-Leading Zeros (The Streak):
-
-It counts the number of 0s at the start of the string.
-- 1101... -> 0 leading zeros. (Common)
-- 0010... -> 2 leading zeros. (1 in 4 chance).
-- 0000001... -> 6 leading zeros. (1 in 64 chance).
-
-The Register (The Memory):
-- HLL keeps a single number in memory: Max_Zeros.
-- Every time it sees a new hash, it updates:
-- Max_Zeros = max(Current_Zeros, Max_Zeros)
-
-The Trade-off:
-- Accuracy: It has a standard error of ~0.81%.
-- Benefit: You can count billions of unique users using less memory than a JPEG image.
-
-The Real-World Stack: Redis has this built-in.
-- PFADD visitors "user_1"
-- PFCOUNT visitors
-
-The Takeaway: In Big Data, "Exact" is the enemy of "Fast." For a dashboard, knowing you have "10.1 Million" users is just as good as "10,142,592"—and it costs 99% less to compute.
-The Estimate:
-At the end, the estimated count is simply: 2^{Max_Zeros}
+Many in-memory databases are full of such "good enough" approximations. Dig deeper when you find time. It's fun.
 </post_3>
 
 <post_4>
@@ -143,31 +102,30 @@ The Takeaway: Don't memorize "Video uses UDP." Understand the constraint: Is the
 </post_4>
 
 <post_5>
-If Zoom used TCP, your video would freeze every time you blinked.
+PostgreSQL lets you clone a 6GB database in 212 milliseconds instead of 67 seconds. Here's how...
 
-In 99% of software engineering, "Packet Loss" is an error. In Real-Time Video, "Packet Loss" is a feature.
+Cloning databases comes in handy in a few situations:
 
-If you are building a file downloader, you use TCP.
+- testing migration without touching prod data
+- spinning up fresh copies for each test suite run
+- resetting sandbox env between sessions
+- reproducible snapshots for debugging
 
-- TCP is reliable. If Packet #50 drops, the receiver says "Stop! I didn't get #50."
-- The sender resends #50. The receiver waits.
-- The Result: 100% accuracy, but variable latency (Head-of-Line Blocking).
-- The Problem with Live Video: 📹 In a video call, a frame from 200ms ago is useless history. If Packet #50 drops, we don't want to pause the live feed to wait for it. We want to skip it and show Packet #51 immediately.
+When your database is a few megabytes, pg_dump works fine. With hundreds of gigabytes, "just make a copy" becomes a serious bottleneck.
 
-This is why Zoom, Google Meet, and Discord use UDP. They prefer "Glitchy" over "Paused."
+PostgreSQL has always had a templating system. Every `CREATE DATABASE` quietly clones `template1` behind the scenes, and you can replace `template1` with any database. (wrote about it earlier in one of my posts)
 
-The Magic: Forward Error Correction (FEC)
-But wait - if we just skip packets, won't the video turn into a garbled mess of green pixels? Not if you use Math.
+Version 15 introduced the `STRATEGY` parameter, switching to WAL_LOG by default (block-by-block copy via Write-Ahead Log). Smoother I/O, but slower for large databases.
 
-Instead of asking for a retransmission (which takes time), the sender proactively sends Redundant Data.
+PostgreSQL 18 has an option `file_copy_method = clone`. On modern filesystems like XFS, ZFS, or APFS, this leverages the FICLONE operation. Instead of copying bytes, the file system creates new metadata that points to the same physical blocks. Both databases share identical storage until you write something.
 
-The Algorithm (Simplified XOR):
-- Sender sends Packet A and Packet B.
-- Sender also computes Packet C = A XOR B (The Parity Packet).
-- Scenario: Packet A gets lost in the network. ❌
-Recovery: The receiver gets B and C. It calculates C XOR B.
-Result: It mathematically reconstructs Packet A instantly. 🤯
-The Trade-off: You use 50% more bandwidth (sending redundant packets) to gain Zero Latency Recovery.
+Here, the supported File System is doing the magic, which creates a copy-on-write (CoW) clone of a file.
+
+When we update a row, the filesystem triggers copy-on-write only for the affected pages. The rest stays shared. 6GB clone takes zero additional space initially and grows only as data diverges.
+
+One thing to keep in mind: the source database can't have active connections during cloning. This is a PostgreSQL limitation, not a filesystem one.
+
+Pretty neat!
 </post_5>
 
 <post_6>

@@ -5,61 +5,49 @@ This is an engineering explainer:
 - Technically precise
 - Optimized for fast comprehension and recall
 
-It should feel like a compressed architectural breakdown shared by an experienced engineer, not marketing content.
+It should read like a compressed architectural breakdown written by someone who was close to the system, not marketing content.
 
 Primary goals:
-- Explain the architectural idea clearly and quickly
-- Preserve causal flow (problem → rejected defaults → decision → mechanics → outcome)
-- Maximize understanding per sentence, not formal completeness
-
-Your task is to write a post based on the provided **Base Idea** and **Description**.
-
-Base Idea: {{ idea }}
-Description: {{ description }}
-Reference Keywords: {{ reference_keywords }}
-
-Study the reference posts carefully.
-Match their density, pacing, and causal structure.
-Do NOT over-polish. Do NOT narrate your thinking.
-
----
-REFERENCE POSTS (STYLE + FLOW):
-{{ reference_posts }}
----
+- Establish the situational context that forced the design
+- Explain the architectural decision clearly and quickly
+- Preserve causal flow (context → pressure → rejected defaults → decision → mechanics → outcome)
+- Maximize understanding per sentence
 
 MANDATORY STRUCTURE (ORDER MATTERS):
 
 1. Context anchor (1–2 sentences)
-   - What system or pattern is being discussed
-   - Light real-world grounding is allowed if it directly motivates the design
+   - Describe the real-world situation or system evolution where this problem emerged
+   - Answer: “What changed that made this necessary?”
+   - No storytelling or scale flexing
 
 2. System pressure
-   - What broke or became impossible
-   - Keep it concrete and specific
-   - No vanity scale metrics
+   - What approach existed before
+   - What specifically stopped working
+   - Concrete failure modes only
 
 3. Concrete problem definition
-   - Hard constraints and failure modes
-   - Facts only
+   - Hard constraints and guarantees required
+   - Facts only, no general theory
 
 4. Rejected default approaches
    - 2–3 bullets max
-   - Common, reasonable options that were explicitly not chosen
-   - Brief reason per rejection
+   - Common, reasonable options that were considered and rejected
+   - One-line reason per rejection
 
 5. Final architecture
    - What was built
-   - Where responsibility lives (DB, app, service)
+   - Where responsibility moved (DB, app, framework, service)
    - What complexity was intentionally avoided
 
 6. Mechanical explanation
-   - How it actually works
-   - Bit layouts, data flow, or execution steps
-   - Short “Why?” justifications are allowed per component
+   - How the system actually works
+   - Data flow, state handling, coordination
+   - Short “Why?” justifications allowed per component
 
-7. Result
-   - Direct outcomes: coordination, performance, storage, simplicity
-   - What this design made unnecessary
+7. Outcome
+   - What became possible
+   - What failure modes were eliminated
+   - What the system no longer has to manage
 
 8. Optional modern note (1 sentence max)
    - A current industry-standard alternative, if it cleanly replaces this design
@@ -81,18 +69,19 @@ DO NOT:
 - Over-summarize or restate obvious points
 
 ALLOWED (IMPORTANT):
-- Minimal historical context if it directly explains the decision
-- Explicit “Why?” explanations for design choices
+- Minimal historical or situational context if it directly explains the design
+- Explicit “Why?” explanations for architectural choices
 - Clear naming of the pattern or approach
 
 ONLY INCLUDE:
+- Context
 - Constraints
 - Pressures
 - Decisions
 - Architecture
 - Consequences
 
-If a sentence does not improve the reader’s understanding of *why this system works*, remove it.
+If a sentence does not improve understanding of *why this architecture exists*, remove it.
 
 ---
 
@@ -101,15 +90,33 @@ FORMAT RULES:
 - No emojis
 - No rhetorical questions
 - Functional labels like “The Problem”, “The Solution”, “The Result” are allowed
-- No decorative or blog-style headings
+- No decorative blog headers
 - No summaries
-- No use of `--` to separate thoughts
+- Do not use of `--` to separate thoughts
+- Keep the entire post under 3000 characters
 
 ---
 
 HASHTAGS:
 - Single final line only
 - Technical hashtags only
-- Format: hashtag#SystemDesign hashtag#DistributedSystems
+- Related to the topic
+- Format: #SystemDesign #DistributedSystems #Kafka #Microservices
 
-Generate the complete post, ready for publication.
+
+Study the reference posts carefully.
+Match their density, pacing, and causal structure.
+Do NOT over-polish. Do NOT narrate your thinking.
+
+---
+
+REFERENCE POSTS (STYLE + FLOW):
+{{ reference_posts }}
+
+---
+
+Your task is to write a complete post, ready for publication, based on the provided Base Idea, Description and Reference.
+
+Base Idea: {{ idea }}
+Description: {{ description }}
+Reference: {{ reference_keywords }}

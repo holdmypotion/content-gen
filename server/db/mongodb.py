@@ -142,9 +142,7 @@ class MongoDB:
             )
             # Convert ObjectId to string
             for doc in documents:
-                logger.info(f"Document _id before conversion: {doc.get('_id')} (type: {type(doc.get('_id'))})")
                 doc['_id'] = str(doc['_id'])
-                logger.info(f"Document _id after conversion: {doc.get('_id')}")
             return documents
         except Exception as e:
             logger.error(f"Error retrieving documents: {str(e)}")
