@@ -18,6 +18,8 @@ BACKEND_URL = "http://backend:8000"  # Use service name in Docker network
 # Initialize session state
 if "is_generating" not in st.session_state:
     st.session_state.is_generating = False
+if "is_regenerating" not in st.session_state:
+    st.session_state.is_regenerating = False
 
 # Create tabs
 tab1, tab2 = st.tabs(["📚 Browse Entries", "✨ Generate New"])
@@ -104,18 +106,130 @@ with tab1:
                     with col2:
                         st.subheader("📊 Status")
                         has_idea = 'idea' in data and data['idea']
-                        has_post = 'post' in data and data['post']
+                        posts = data.get('posts') or []
+                        has_posts = len(posts) > 0
                         st.write(f"**Idea Generated:** {'✅' if has_idea else '❌'}")
-                        st.write(f"**Post Generated:** {'✅' if has_post else '❌'}")
+                        st.write(f"**Posts Generated:** {len(posts) if has_posts else '❌'}")
 
                     # Display idea
                     if has_idea:
                         st.subheader("💡 Idea")
-                        st.write(data.get('idea'))
+                        
+                        # Initialize edit state for idea
+                        idea_edit_key = f"idea_edit_{selected_id}"
+                        if idea_edit_key not in st.session_state:
+                            st.session_state[idea_edit_key] = False
+                        
+                        col1, col2 = st.columns([0.90, 0.10])
+                        with col1:
+                            if st.session_state[idea_edit_key]:
+                                # Edit mode
+                                edited_idea = st.text_area(
+                                        "Edit Idea",
+                                        value=data.get('idea'),
+                                        height=200,
+                                        label_visibility="collapsed"
+                                        )
+                                col_save, col_cancel = st.columns(2)
+                                with col_save:
+                                    if st.button("💾 Save Idea", key=f"save_idea_{selected_id}", use_container_width=True):
+                                        try:
+                                            update_response = requests.put(
+                                                    f"{BACKEND_URL}/content/{selected_id}",
+                                                    json={"idea": edited_idea},
+                                                    timeout=10
+                                            )
+                                            update_response.raise_for_status()
+                                            st.session_state[idea_edit_key] = False
+                                            st.success("Idea saved successfully!")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Failed to save: {str(e)}")
+                                with col_cancel:
+                                    if st.button("❌ Cancel", key=f"cancel_idea_{selected_id}", use_container_width=True):
+                                        st.session_state[idea_edit_key] = False
+                                        st.rerun()
+                            else:
+                                # View mode
+                                st.markdown(data.get('idea'))
+                        
+                        with col2:
+                            if not st.session_state[idea_edit_key]:
+                                if st.button("✏️", key=f"idea_edit_btn_{selected_id}", help="Edit idea"):
+                                    st.session_state[idea_edit_key] = True
+                                    st.rerun()
 
-                    # Display post
-                    if has_post:
-                        st.subheader("📝 Post")
+                    # Display posts
+                    if has_posts:
+                        st.subheader("📝 Posts")
+
+                        # Initialize post index state for this entry
+                        post_index_key = f"post_index_{selected_id}"
+                        if post_index_key not in st.session_state:
+                            st.session_state[post_index_key] = len(posts) - 1
+
+                        # Regenerate button row
+                        regen_col1, regen_col2 = st.columns([0.85, 0.15])
+                        with regen_col2:
+                            if st.button("🔄 Regenerate Post", key=f"regen_{selected_id}", disabled=st.session_state.is_regenerating):
+                                st.session_state.is_regenerating = True
+                                try:
+                                    regen_response = requests.post(
+                                            f"{BACKEND_URL}/regenerate-post",
+                                            json={
+                                                "content_id": selected_id,
+                                                "provider": data.get('provider', 'gemini')
+                                                },
+                                            timeout=30
+                                            )
+                                    if regen_response.status_code == 200:
+                                        task_data = regen_response.json()
+                                        task_id = task_data.get('task_id')
+
+                                        with st.spinner("Regenerating post..."):
+                                            max_retries = 60
+                                            for attempt in range(max_retries):
+                                                status_response = requests.get(
+                                                        f"{BACKEND_URL}/task/{task_id}",
+                                                        timeout=10
+                                                        )
+                                                status_data = status_response.json()
+
+                                                if status_data['status'] == 'SUCCESS':
+                                                    st.success("Post regenerated successfully!")
+                                                    st.session_state[post_index_key] = len(posts)
+                                                    break
+                                                elif status_data['status'] == 'FAILURE':
+                                                    st.error(f"Regeneration failed: {status_data.get('error')}")
+                                                    break
+
+                                                time.sleep(1)
+                                            else:
+                                                st.warning("Regeneration is taking longer than expected")
+                                    else:
+                                        st.error(f"Error: {regen_response.status_code} - {regen_response.text}")
+                                except requests.exceptions.RequestException as e:
+                                    st.error(f"Connection error: {str(e)}")
+                                finally:
+                                    st.session_state.is_regenerating = False
+                                    st.rerun()
+
+                        # Post navigation if multiple posts
+                        if len(posts) > 1:
+                            nav_col1, nav_col2, nav_col3 = st.columns([0.1, 0.8, 0.1])
+                            with nav_col1:
+                                if st.button("◀", key=f"prev_{selected_id}", disabled=st.session_state[post_index_key] == 0):
+                                    st.session_state[post_index_key] -= 1
+                                    st.rerun()
+                            with nav_col2:
+                                st.write(f"**Post {st.session_state[post_index_key] + 1} of {len(posts)}**")
+                            with nav_col3:
+                                if st.button("▶", key=f"next_{selected_id}", disabled=st.session_state[post_index_key] >= len(posts) - 1):
+                                    st.session_state[post_index_key] += 1
+                                    st.rerun()
+
+                        current_post_index = st.session_state[post_index_key]
+                        current_post = posts[current_post_index] if current_post_index < len(posts) else posts[-1]
 
                         # Initialize edit state for this entry
                         edit_key = f"edit_{selected_id}"
@@ -128,18 +242,20 @@ with tab1:
                                 # Edit mode
                                 edited_post = st.text_area(
                                         "Edit Post",
-                                        value=data.get('post'),
+                                        value=current_post,
                                         height=250,
                                         label_visibility="collapsed"
                                         )
                                 col_save, col_cancel = st.columns(2)
                                 with col_save:
                                     if st.button("💾 Save", key=f"save_{selected_id}", use_container_width=True):
-                                        # Update via API
+                                        # Update via API - update specific post in array
                                         try:
+                                            updated_posts = posts.copy()
+                                            updated_posts[current_post_index] = edited_post
                                             update_response = requests.put(
                                                     f"{BACKEND_URL}/content/{selected_id}",
-                                                    json={"post": edited_post},
+                                                    json={"posts": updated_posts},
                                                     timeout=10
                                             )
                                             update_response.raise_for_status()
@@ -153,14 +269,64 @@ with tab1:
                                         st.session_state[edit_key] = False
                                         st.rerun()
                             else:
-                                # View mode
-                                st.code(data.get('post'), language="markdown")
+                                 # View mode
+                                 st.markdown(current_post)
+
+                        with col2:
+                            if not st.session_state[edit_key]:
+                                import urllib.parse
+                                encoded_text = urllib.parse.quote(current_post)
+                                linkedin_url = f"https://www.linkedin.com/feed/?shareActive=true&text={encoded_text}"
+                                st.link_button("🔗", linkedin_url, help="Post on LinkedIn")
 
                         with col3:
                             if not st.session_state[edit_key]:
                                 if st.button("✏️", key=f"edit_btn_{selected_id}", help="Edit post"):
                                     st.session_state[edit_key] = True
                                     st.rerun()
+                    elif has_idea:
+                        st.info("No posts generated yet. Click 'Regenerate Post' to generate one.")
+                        if st.button("🔄 Generate Post", key=f"gen_post_{selected_id}", disabled=st.session_state.is_regenerating):
+                            st.session_state.is_regenerating = True
+                            try:
+                                regen_response = requests.post(
+                                        f"{BACKEND_URL}/regenerate-post",
+                                        json={
+                                            "content_id": selected_id,
+                                            "provider": data.get('provider', 'gemini')
+                                            },
+                                        timeout=30
+                                        )
+                                if regen_response.status_code == 200:
+                                    task_data = regen_response.json()
+                                    task_id = task_data.get('task_id')
+
+                                    with st.spinner("Generating post..."):
+                                        max_retries = 60
+                                        for attempt in range(max_retries):
+                                            status_response = requests.get(
+                                                    f"{BACKEND_URL}/task/{task_id}",
+                                                    timeout=10
+                                                    )
+                                            status_data = status_response.json()
+
+                                            if status_data['status'] == 'SUCCESS':
+                                                st.success("Post generated successfully!")
+                                                break
+                                            elif status_data['status'] == 'FAILURE':
+                                                st.error(f"Generation failed: {status_data.get('error')}")
+                                                break
+
+                                            time.sleep(1)
+                                        else:
+                                            st.warning("Generation is taking longer than expected")
+                                else:
+                                    st.error(f"Error: {regen_response.status_code} - {regen_response.text}")
+                            except requests.exceptions.RequestException as e:
+                                st.error(f"Connection error: {str(e)}")
+                            finally:
+                                st.session_state.is_regenerating = False
+                                st.rerun()
 
     except requests.exceptions.RequestException as e:
         st.error(f"Error connecting to backend: {str(e)}")

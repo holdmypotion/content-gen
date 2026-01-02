@@ -200,6 +200,35 @@ class MongoDB:
         except Exception as e:
             logger.error(f"Error deleting document {document_id}: {str(e)}")
             raise
+
+    def append_post(self, document_id: str, post: str) -> bool:
+        """
+        Append a new post to the posts array of a document.
+        
+        Args:
+            document_id: MongoDB document ID
+            post: Post text to append
+            
+        Returns:
+            bool: True if update was successful
+        """
+        try:
+            result = self.db.contents.update_one(
+                {"_id": ObjectId(document_id)},
+                {
+                    "$push": {"posts": post},
+                    "$set": {"post_generated_at": datetime.now().isoformat()}
+                }
+            )
+            if result.modified_count > 0:
+                logger.info(f"Post appended to document {document_id}")
+                return True
+            else:
+                logger.warning(f"No document found with ID: {document_id}")
+                return False
+        except Exception as e:
+            logger.error(f"Error appending post to document {document_id}: {str(e)}")
+            raise
     
     def close(self):
         """Close MongoDB connection."""

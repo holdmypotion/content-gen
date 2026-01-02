@@ -4,6 +4,7 @@ from celery.result import AsyncResult
 
 from config import settings
 from celery_app import app as celery_app
+from db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -112,3 +113,64 @@ async def get_task_status(task_id: str):
                 status_code=500,
                 detail=f"Failed to retrieve task status: {str(e)}"
                 )
+
+
+async def initiate_post_regeneration(request):
+    """
+    Initiate post regeneration for an existing content entry.
+    """
+    try:
+        db = get_db()
+        content = db.get_content(request.content_id)
+        
+        if not content:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Content with ID {request.content_id} not found"
+            )
+        
+        idea = content.get('idea')
+        if not idea:
+            raise HTTPException(
+                status_code=400,
+                detail="No idea found in content. Cannot regenerate post without an idea."
+            )
+        
+        provider_tasks = {
+            "gemini": "tasks.regenerate_post_gemini",
+            "gpt": "tasks.regenerate_post_gpt",
+        }
+
+        task_name = provider_tasks.get(request.provider)
+        if not task_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider specified: {request.provider}"
+            )
+
+        post_task = celery_app.send_task(
+            task_name,
+            args=[idea],
+            kwargs={
+                'reference_keywords': content.get('reference_keywords', ''),
+                'reference_posts': content.get('reference_posts', []),
+                'db_file': request.content_id
+            }
+        )
+
+        logger.info(f"Started {request.provider} post regeneration task: {post_task.id}")
+
+        return {
+            "task_id": post_task.id,
+            "message": f"Post regeneration started with {request.provider}",
+            "status": "pending"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error initiating post regeneration: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initiate post regeneration: {str(e)}"
+        )

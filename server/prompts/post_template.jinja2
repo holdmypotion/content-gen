@@ -1,108 +1,20 @@
 You are a senior engineer explaining a real production architecture to other engineers.
 
-This is an engineering explainer:
-- External-facing
-- Technically precise
-- Optimized for fast comprehension and recall
-
-It should read like a compressed architectural breakdown written by someone who was close to the system, not marketing content.
-
-Primary goals:
-- Establish the situational context that forced the design
-- Explain the architectural decision clearly and quickly
-- Preserve causal flow (context → pressure → rejected defaults → decision → mechanics → outcome)
-- Maximize understanding per sentence
-
-MANDATORY STRUCTURE (ORDER MATTERS):
-
-1. Context anchor (1–2 sentences)
-   - Describe the real-world situation or system evolution where this problem emerged
-   - Answer: “What changed that made this necessary?”
-   - No storytelling or scale flexing
-
-2. System pressure
-   - What approach existed before
-   - What specifically stopped working
-   - Concrete failure modes only
-
-3. Concrete problem definition
-   - Hard constraints and guarantees required
-   - Facts only, no general theory
-
-4. Rejected default approaches
-   - 2–3 bullets max
-   - Common, reasonable options that were considered and rejected
-   - One-line reason per rejection
-
-5. Final architecture
-   - What was built
-   - Where responsibility moved (DB, app, framework, service)
-   - What complexity was intentionally avoided
-
-6. Mechanical explanation
-   - How the system actually works
-   - Data flow, state handling, coordination
-   - Short “Why?” justifications allowed per component
-
-7. Outcome
-   - What became possible
-   - What failure modes were eliminated
-   - What the system no longer has to manage
-
-8. Optional modern note (1 sentence max)
-   - A current industry-standard alternative, if it cleanly replaces this design
-
-Each section:
-- Max 2–3 short paragraphs or bullets
-- Short declarative sentences
-- Sentence fragments allowed
-
----
-
-STRICT WRITING RULES:
-
-DO NOT:
-- Add personal storytelling or opinions
-- Explain general industry concepts
-- Add operational checklists
-- Add philosophical lessons
-- Over-summarize or restate obvious points
-
-ALLOWED (IMPORTANT):
-- Minimal historical or situational context if it directly explains the design
-- Explicit “Why?” explanations for architectural choices
-- Clear naming of the pattern or approach
-
-ONLY INCLUDE:
-- Context
-- Constraints
-- Pressures
-- Decisions
-- Architecture
-- Consequences
-
-If a sentence does not improve understanding of *why this architecture exists*, remove it.
-
----
-
 FORMAT RULES:
-- Short paragraphs or hyphen bullets only
 - No emojis
-- No rhetorical questions
-- Functional labels like “The Problem”, “The Solution”, “The Result” are allowed
 - No decorative blog headers
 - No summaries
-- Do not use of `--` to separate thoughts
-- Keep the entire post under 3000 characters
+- Do not use `--` to separate thoughts
 
----
+HARD LIMIT:
+- The entire post must be under 2000 characters
+- Drop details before compressing sentences
 
 HASHTAGS:
 - Single final line only
 - Technical hashtags only
 - Related to the topic
 - Format: #SystemDesign #DistributedSystems #Kafka #Microservices
-
 
 Study the reference posts carefully.
 Match their density, pacing, and causal structure.
@@ -119,4 +31,3 @@ Your task is to write a complete post, ready for publication, based on the provi
 
 Base Idea: {{ idea }}
 Description: {{ description }}
-Reference: {{ reference_keywords }}

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, field_validator, ConfigDict, Field
 from typing import Optional, List
 
-from controllers.generate import initiate_generation, get_task_status
+from controllers.generate import initiate_generation, get_task_status, initiate_post_regeneration
 from utils.scraper import process_keywords
 from db import get_db
 
@@ -46,8 +46,13 @@ class ContentResponse(BaseModel):
     provider: str
     reference_keywords: str
     idea: Optional[str] = None
-    post: Optional[str] = None
+    posts: Optional[List[str]] = None
     reference_posts: Optional[list] = None
+
+
+class RegeneratePostRequest(BaseModel):
+    content_id: str
+    provider: Optional[str] = "gemini"
 
 
 @router.get("/health")
@@ -158,3 +163,9 @@ async def delete_content(content_id: str):
             status_code=500,
             detail=f"Failed to delete content: {str(e)}"
         )
+
+
+@router.post("/regenerate-post", response_model=GenerateResponse)
+async def regenerate_post(request: RegeneratePostRequest):
+    """Regenerate post for an existing content entry."""
+    return await initiate_post_regeneration(request)

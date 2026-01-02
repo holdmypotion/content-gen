@@ -87,7 +87,8 @@ def register_tasks(celery_app):
                     'provider': 'gemini',
                     'reference_keywords': reference_keywords,
                     'reference_posts': reference_posts or [],
-                    'idea': idea
+                    'idea': idea,
+                    'posts': []
                     }
             db_file = save_to_db(idea_data)
 
@@ -139,11 +140,8 @@ def register_tasks(celery_app):
             if db_file:
                 try:
                     db = get_db()
-                    db.update_content(db_file, {
-                        'post': post,
-                        'post_generated_at': datetime.now().isoformat()
-                        })
-                    logger.info(f"Post added to document {db_file}")
+                    db.append_post(db_file, post)
+                    logger.info(f"Post appended to document {db_file}")
                 except Exception as e:
                     logger.warning(f"Could not update document {db_file}: {str(e)}, creating new")
                     post_data = {
@@ -153,7 +151,7 @@ def register_tasks(celery_app):
                             'reference_keywords': reference_keywords,
                             'reference_posts': reference_posts or [],
                             'idea': idea,
-                            'post': post
+                            'posts': [post]
                             }
                     db_file = save_to_db(post_data)
             else:
@@ -164,7 +162,7 @@ def register_tasks(celery_app):
                         'reference_keywords': reference_keywords,
                         'reference_posts': reference_posts or [],
                         'idea': idea,
-                        'post': post
+                        'posts': [post]
                         }
                 db_file = save_to_db(post_data)
 
@@ -209,7 +207,8 @@ def register_tasks(celery_app):
                     'reference_keywords': reference_keywords,
                     'provider': 'gpt',
                     'reference_posts': reference_posts or [],
-                    'idea': idea
+                    'idea': idea,
+                    'posts': []
                     }
             db_file = save_to_db(idea_data)
 
@@ -264,11 +263,8 @@ def register_tasks(celery_app):
             if db_file:
                 try:
                     db = get_db()
-                    db.update_content(db_file, {
-                        'post': post,
-                        'post_generated_at': datetime.now().isoformat()
-                        })
-                    logger.info(f"Post added to document {db_file}")
+                    db.append_post(db_file, post)
+                    logger.info(f"Post appended to document {db_file}")
                 except Exception as e:
                     logger.warning(f"Could not update document {db_file}: {str(e)}, creating new")
                     post_data = {
@@ -278,7 +274,7 @@ def register_tasks(celery_app):
                             'reference_keywords': reference_keywords,
                             'reference_posts': reference_posts or [],
                             'idea': idea,
-                            'post': post
+                            'posts': [post]
                             }
                     db_file = save_to_db(post_data)
             else:
@@ -289,7 +285,7 @@ def register_tasks(celery_app):
                         'reference_keywords': reference_keywords,
                         'reference_posts': reference_posts or [],
                         'idea': idea,
-                        'post': post
+                        'posts': [post]
                         }
                 db_file = save_to_db(post_data)
 
@@ -297,4 +293,85 @@ def register_tasks(celery_app):
 
         except Exception as e:
             logger.error(f"Error generating post with GPT: {str(e)}")
+            return {'status': 'error', 'error': str(e)}
+
+    @celery_app.task(bind=True, name='tasks.regenerate_post_gemini')
+    def regenerate_post_gemini(self, idea: str, reference_keywords: str = '', reference_posts: list = None, db_file: str = None):
+        """
+        Regenerate a post based on existing idea using Gemini.
+        """
+        try:
+            self.update_state(state='PROGRESS', meta={'current': 'Rendering post prompt'})
+
+            loaded_posts = load_reference_posts()
+
+            template = jinja_env.get_template('post_template.jinja2')
+            prompt = template.render(
+                    idea=idea,
+                    reference_keywords=reference_keywords,
+                    reference_posts=loaded_posts
+                    )
+
+            self.update_state(state='PROGRESS', meta={'current': 'Calling Gemini API'})
+
+            model = genai.GenerativeModel(settings.GOOGLE_MODEL)
+            response = model.generate_content(prompt)
+            post = response.text
+
+            if hasattr(response, 'usage_metadata'):
+                logger.info(f"Gemini post regeneration - Prompt tokens: {response.usage_metadata.prompt_token_count}, "
+                            f"Completion tokens: {response.usage_metadata.candidates_token_count}")
+
+            logger.info(f"Successfully regenerated post with Gemini for idea: {idea[:50]}...")
+
+            if db_file:
+                db = get_db()
+                db.append_post(db_file, post)
+                logger.info(f"Regenerated post appended to document {db_file}")
+
+            return {'status': 'success', 'post': post, 'db_file': db_file}
+
+        except Exception as e:
+            logger.error(f"Error regenerating post with Gemini: {str(e)}")
+            return {'status': 'error', 'error': str(e)}
+
+    @celery_app.task(bind=True, name='tasks.regenerate_post_gpt')
+    def regenerate_post_gpt(self, idea: str, reference_keywords: str = '', reference_posts: list = None, db_file: str = None):
+        """
+        Regenerate a post based on existing idea using GPT.
+        """
+        try:
+            self.update_state(state='PROGRESS', meta={'current': 'Rendering post prompt'})
+
+            loaded_posts = load_reference_posts()
+            template = jinja_env.get_template('post_template.jinja2')
+            prompt = template.render(
+                    idea=idea,
+                    reference_keywords=reference_keywords,
+                    reference_posts=loaded_posts
+                    )
+
+            self.update_state(state='PROGRESS', meta={'current': 'Calling OpenAI API'})
+
+            response = openai.chat.completions.create(
+                    model=settings.OPENAI_MODEL,
+                    messages=[{"role": "user", "content": prompt}]
+                    )
+            post = response.choices[0].message.content
+
+            if hasattr(response, 'usage'):
+                logger.info(f"OpenAI post regeneration - Prompt tokens: {response.usage.prompt_tokens}, "
+                            f"Completion tokens: {response.usage.completion_tokens}")
+
+            logger.info(f"Successfully regenerated post with GPT for idea: {idea[:50]}...")
+
+            if db_file:
+                db = get_db()
+                db.append_post(db_file, post)
+                logger.info(f"Regenerated post appended to document {db_file}")
+
+            return {'status': 'success', 'post': post, 'db_file': db_file}
+
+        except Exception as e:
+            logger.error(f"Error regenerating post with GPT: {str(e)}")
             return {'status': 'error', 'error': str(e)}
