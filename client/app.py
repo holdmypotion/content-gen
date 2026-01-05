@@ -2,6 +2,9 @@ import streamlit as st
 import requests
 import time
 from datetime import datetime
+import os
+import hashlib
+import hmac
 
 # Page configuration
 st.set_page_config(
@@ -9,6 +12,51 @@ st.set_page_config(
         page_icon="✍️",
         layout="wide"
         )
+
+# Basic Authentication
+@st.cache_resource
+def get_auth_token():
+    """Generate auth token for session"""
+    return os.getenv("AUTH_TOKEN", "default_secret_key")
+
+def check_auth():
+    """Check if user is authenticated"""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    
+    # Check query parameter for token (set after login)
+    query_params = st.query_params
+    if "auth_token" in query_params:
+        expected_token = get_auth_token()
+        if query_params.get("auth_token") == expected_token:
+            st.session_state.authenticated = True
+    
+    if not st.session_state.authenticated:
+        st.title("Content Generator")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("### Login")
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            
+            if st.button("Login", use_container_width=True):
+                # Get credentials from environment variables
+                correct_username = os.getenv("AUTH_USERNAME", "admin")
+                correct_password = os.getenv("AUTH_PASSWORD", "password")
+                
+                if username == correct_username and password == correct_password:
+                    st.session_state.authenticated = True
+                    st.session_state.username = username
+                    # Redirect with auth token in URL (persists on refresh)
+                    st.query_params["auth_token"] = get_auth_token()
+                    st.success("Logged in successfully!")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+        st.stop()
+
+check_auth()
 
 st.title("Content Generator")
 
@@ -398,4 +446,13 @@ with tab2:
 
 # Footer
 st.divider()
-st.caption(f"Content Generator • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+col1, col2 = st.columns([1, 0.15])
+with col1:
+    st.caption(f"Content Generator • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+with col2:
+    if st.button("Logout", use_container_width=True):
+        st.session_state.authenticated = False
+        # Remove auth token from URL
+        if "auth_token" in st.query_params:
+            del st.query_params["auth_token"]
+        st.rerun()
