@@ -76,7 +76,8 @@ def show_auth_page():
     """Display login/signup page."""
     st.title("Content Generator")
     
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    tab1 = st.tabs(["Login"])[0]
+    # tab2 = st.tabs(["Sign Up"])[0]  # Sign up disabled
     
     with tab1:
         st.subheader("Login")
@@ -115,48 +116,48 @@ def show_auth_page():
                         except Exception as e:
                             st.error(f"Login error: {str(e)}")
     
-    with tab2:
-        st.subheader("Create Account")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            with st.form("signup_form", clear_on_submit=False):
-                email = st.text_input("Email")
-                username = st.text_input("Username (alphanumeric, min 3 chars)")
-                password = st.text_input("Password (min 6 chars)", type="password")
-                password_confirm = st.text_input("Confirm Password", type="password")
-                
-                submitted = st.form_submit_button("Sign Up", use_container_width=True)
-                
-                if submitted:
-                    if not all([email, username, password, password_confirm]):
-                        st.error("Please fill in all fields")
-                    elif password != password_confirm:
-                        st.error("Passwords don't match")
-                    else:
-                        try:
-                            response = requests.post(
-                                f"{BACKEND_URL}/auth/signup",
-                                json={
-                                    "email": email,
-                                    "username": username,
-                                    "password": password
-                                },
-                                timeout=10
-                            )
-                            
-                            if response.status_code == 200:
-                                data = response.json()
-                                st.session_state.token = data["access_token"]
-                                st.session_state.user = data["user"]
-                                save_auth_to_local_storage()
-                                st.success("Account created and logged in!")
-                                time.sleep(0.5)
-                                st.rerun()
-                            else:
-                                error_detail = response.json().get("detail", "Signup failed")
-                                st.error(f"Signup error: {error_detail}")
-                        except Exception as e:
-                            st.error(f"Signup error: {str(e)}")
+    # with tab2:
+    #     st.subheader("Create Account")
+    #     col1, col2, col3 = st.columns([1, 2, 1])
+    #     with col2:
+    #         with st.form("signup_form", clear_on_submit=False):
+    #             email = st.text_input("Email")
+    #             username = st.text_input("Username (alphanumeric, min 3 chars)")
+    #             password = st.text_input("Password (min 6 chars)", type="password")
+    #             password_confirm = st.text_input("Confirm Password", type="password")
+    #             
+    #             submitted = st.form_submit_button("Sign Up", use_container_width=True)
+    #             
+    #             if submitted:
+    #                 if not all([email, username, password, password_confirm]):
+    #                     st.error("Please fill in all fields")
+    #                 elif password != password_confirm:
+    #                     st.error("Passwords don't match")
+    #                 else:
+    #                     try:
+    #                         response = requests.post(
+    #                             f"{BACKEND_URL}/auth/signup",
+    #                             json={
+    #                                 "email": email,
+    #                                 "username": username,
+    #                                 "password": password
+    #                             },
+    #                             timeout=10
+    #                         )
+    #                         
+    #                         if response.status_code == 200:
+    #                             data = response.json()
+    #                             st.session_state.token = data["access_token"]
+    #                             st.session_state.user = data["user"]
+    #                             save_auth_to_local_storage()
+    #                             st.success("Account created and logged in!")
+    #                             time.sleep(0.5)
+    #                             st.rerun()
+    #                         else:
+    #                             error_detail = response.json().get("detail", "Signup failed")
+    #                             st.error(f"Signup error: {error_detail}")
+    #                     except Exception as e:
+    #                         st.error(f"Signup error: {str(e)}")
 
 
 def show_main_app():
