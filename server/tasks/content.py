@@ -53,7 +53,7 @@ def register_tasks(celery_app):
     """Register Celery tasks with the app instance."""
 
     @celery_app.task(bind=True, name='tasks.generate_idea_gemini')
-    def generate_idea_gemini(self, reference_keywords: str, reference_posts: list = None):
+    def generate_idea_gemini(self, reference_keywords: str, reference_posts: list = None, user_id: str = None):
         """
         Generate an idea for a post based on reference keywords using Gemini.
         """
@@ -88,7 +88,8 @@ def register_tasks(celery_app):
                     'reference_keywords': reference_keywords,
                     'reference_posts': reference_posts or [],
                     'idea': idea,
-                    'posts': []
+                    'posts': [],
+                    'user_id': user_id
                     }
             db_file = save_to_db(idea_data)
 
@@ -173,7 +174,7 @@ def register_tasks(celery_app):
             return {'status': 'error', 'error': str(e)}
 
     @celery_app.task(bind=True, name='tasks.generate_idea_gpt')
-    def generate_idea_gpt(self, reference_keywords: str, reference_posts: list = None):
+    def generate_idea_gpt(self, reference_keywords: str, reference_posts: list = None, user_id: str = None):
         """
         Generate an idea for a post based on reference keywords using GPT.
         """
@@ -208,7 +209,8 @@ def register_tasks(celery_app):
                     'provider': 'gpt',
                     'reference_posts': reference_posts or [],
                     'idea': idea,
-                    'posts': []
+                    'posts': [],
+                    'user_id': user_id
                     }
             db_file = save_to_db(idea_data)
 

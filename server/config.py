@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Prompts
     IDEA_PROMPT_TEMPLATE_PATH: str = "prompts/idea_template.jinja2"
     POST_PROMPT_TEMPLATE_PATH: str = "prompts/post_template.jinja2"
+    
+    # JWT
+    SECRET_KEY: Optional[str] = "your-secret-key-change-this-in-production"
 
     class Config:
         env_file = ".env"

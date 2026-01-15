@@ -9,7 +9,7 @@ from db import get_db
 logger = logging.getLogger(__name__)
 
 
-async def initiate_generation(request):
+async def initiate_generation(request, user_id: str):
     """
     Initiate content generation workflow.
     """
@@ -36,7 +36,10 @@ async def initiate_generation(request):
         idea_task = celery_app.send_task(
             task_name,
             args=[request.reference_keywords],
-            kwargs={'reference_posts': request.reference_posts}
+            kwargs={
+                'reference_posts': request.reference_posts,
+                'user_id': user_id
+            }
         )
 
         logger.info(f"Started {request.provider} idea generation task: {idea_task.id}")

@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  backend:
+    image: content-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.prod.backend
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+    expose:
+      - "8000"
+    depends_on:
+      redis:
+        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  celery_worker:
+    image: content-backend:latest
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+    command: celery -A celery_app worker --loglevel=info
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  frontend:
+    image: content-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.prod.frontend
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    expose:
+      - "6379"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

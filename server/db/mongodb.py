@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any
 from bson import ObjectId
 
 from config import settings
+from db.users import UsersDB
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class MongoDB:
     def __init__(self):
         self.client = None
         self.db = None
+        self.users = None
         self.connect()
     
     def connect(self):
@@ -28,6 +30,7 @@ class MongoDB:
             # Verify connection
             self.client.admin.command('ping')
             self.db = self.client[settings.MONGODB_DB_NAME]
+            self.users = UsersDB(self.db)
             logger.info(f"Connected to MongoDB database: {settings.MONGODB_DB_NAME}")
             self._create_indexes()
         except (ConnectionFailure, ServerSelectionTimeoutError) as e:
@@ -41,6 +44,7 @@ class MongoDB:
             self.db.contents.create_index("timestamp")
             self.db.contents.create_index("provider")
             self.db.contents.create_index("type")
+            self.db.contents.create_index("user_id")
             logger.info("MongoDB indexes created successfully")
         except Exception as e:
             logger.warning(f"Failed to create indexes: {str(e)}")
@@ -115,6 +119,7 @@ class MongoDB:
     
     def get_all_contents(
         self,
+        user_id: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
         sort_by: str = "timestamp",
@@ -124,6 +129,7 @@ class MongoDB:
         Retrieve all content documents with pagination.
         
         Args:
+            user_id: Filter by user ID (optional)
             skip: Number of documents to skip
             limit: Maximum documents to return
             sort_by: Field to sort by
@@ -134,8 +140,9 @@ class MongoDB:
         """
         try:
             sort_order = -1 if descending else 1
+            query = {"user_id": user_id} if user_id else {}
             documents = list(
-                self.db.contents.find()
+                self.db.contents.find(query)
                 .sort(sort_by, sort_order)
                 .skip(skip)
                 .limit(limit)
